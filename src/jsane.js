@@ -1,7 +1,7 @@
 
 var fs = require('fs');
 var path = require('path');
-var instrumentator = require('./esnull-instrument');
+var instrumentator = require('./jsane-instrument');
 
 /**
  *  Annotate |src_file| and save the result to |dest_file|,
@@ -12,12 +12,12 @@ function processFileAsync(src_file, dest_file) {
 
 	fs.readFile(src_file, {encoding : 'utf-8'}, function(err, data) {
 		if (err) {
-			throw new Error("esnull: Failed to read input file " + src_file);
+			throw new Error("jsane: Failed to read input file " + src_file);
 		}
 
-	   	fs.writeFile(dest_file, data + " /* !esnull!:y */ ", function(err) {
+	   	fs.writeFile(dest_file, data + " /* !jsane!:y */ ", function(err) {
 	   		if (err) {
-	   			throw new Error("esnull: Failed to write to output file " + dest_file);
+	   			throw new Error("jsane: Failed to write to output file " + dest_file);
 	   		}
 	   	})
 	});
