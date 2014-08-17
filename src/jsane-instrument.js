@@ -1,55 +1,164 @@
 (function(exports){
 "use strict";
 
+// Module imports
 var	falafel = require('falafel')
 ,	format = require('util').format
-,	DEFAULT_SAFE_NAME = '__rt';
+,	fs = require('fs')
+;
+
+// Mixed constants
+var	DEFAULT_RUNTIME_NAME = '__rt'
+,	RUNTIME_NODE_MODULE = 'jsane-runtime'
+;
 
 
-var wrapBinaryExpression = function(node) {
-	var op = node.operator;
-	if (op == '+' || op == '-' || op == '*' || op == '/' || op == '|' || op == '&') {
-		// If either of the operands is NULL-LIKE, probe the result of the
-		// arithmetic expression.
-		//
-		// If it is NULL-LIKE, it is likely to cause havoc later. If it
-		// is not NULL-LIKE, a potential issue has been silently swallowed.
-		node.update(format('%s.chkArith((%s), "%s")', node.source(), op));
+
+//// IMPLEMENTATION /////////////////////////////////////////////////////////
+
+// Get the source code of the runtime library
+var getRuntimeText = (function() {
+	var cached_text = null;
+	return function() {
+		if (cached_text === null) {
+			var file_name = './' + RUNTIME_NODE_MODULE + '.js';
+			cached_text = fs.readFileSync(file_name, 
+				{encoding : 'utf-8'});
+
+			if (!cached_text) {
+				throw new Error('Failed to read runtime library source from ' + file_name);
+			}
+		}
+		return cached_text;
+	};
+})();
+
+// Instrumentation logic
+// Encapsulates instrumentation options and falafel usage.
+var Context = function(options) {
+	if (!(this instanceof Context)) {
+		return new Context(options);
 	}
-};
+
+	var self = this
+	,	runtime_name = options.runtime_name || DEFAULT_RUNTIME_NAME
+	,	runtime_linkage = options.runtime_linkage || exports.RUNTIME_REQUIRE
+	;
+
+	var falafel_opts = {
+		// Want |raw| property on AST nodes containing verbatim source code
+		raw : true,
+
+		// Want location info in AST nodes
+		loc : true,
+	};
+
+	/////////////////////////////
+	this.instrument = function(text) {	
+		var instrumented_text = falafel(text, falafel_opts, function(node) {
+
+			if (node.type == 'BinaryExpression') {
+				self.instrumentBinaryExpression(node);
+			}
+		});
+
+		// Link in runtime library
+		if (runtime_linkage === exports.RUNTIME_NONE) {
+			return instrumented_text;
+		}
+		else if (runtime_linkage === exports.RUNTIME_REQUIRE) {
+			var runtime_name_binding = format('var %s = require(\'%s\');',
+				runtime_name,
+				(options.runtime_prefix || '') + RUNTIME_NODE_MODULE
+			);
+			return runtime_name_binding + instrumented_text;
+		}
+		else if (runtime_linkage === exports.RUNTIME_EMBED) {
+			// The runtime module populates |exports| because
+			// it thinks that it runs as node module.
+			var runtime_embedding = format('(function() { %s = {}; var exports = %s; %s })();',
+				runtime_name,
+				runtime_name,
+				getRuntimeText()
+			); 
+			return runtime_embedding + instrumented_text;
+		}
+		self.error("|options.runtime_linkage| must be one of the RUNTIME_XXX constants");
+	};
+
+	/////////////////////////////
+	this.instrumentBinaryExpression = function(node) {
+		var op = node.operator;
+		if (op == '+' || op == '-' || op == '*' || op == '/' || op == '|' || op == '&') {
+			//var lhs = node.
+			// If either of the operands is NULL-LIKE, probe the result of the
+			// arithmetic expression.
+			//
+			// If it is NULL-LIKE, it is likely to cause havoc later. If it
+			// is not NULL-LIKE, a potential issue has been silently swallowed.
+			node.update(format('%s.chkArith((%s), (%s), (%s), "%s")', 
+				runtime_name,
+				node.source(),
+				node.left.source(),
+				node.right.source(),
+				op));
+		}
+	};
+
+	this.error = function(text) {
+		throw new Error(text);
+	}
+}
 
 
 //// EXPORTS //////////////////////////////////////////////////////////////
+
+
+/** The runtime library (jsane-runtime) is embedded into the
+ *  instrumented source code.
+ */
+exports.RUNTIME_EMBED = 'embed';
+
+/** require('jsane-runtime') is used to load the runtime library.
+ */
+exports.RUNTIME_REQUIRE = 'require';
+
+/** The runtime library is not embedded, it must be available
+ *  under the global name given by the |runtime_name|
+ *  option. This can be used to cut space if other instrumented
+ *  modules that embed the runtime library (|RUNTIME_EMBED|)
+ *  load earlier.
+ */
+exports.RUNTIME_NONE = 'none';
 
 /** 
   
   Instrument ES5 source code.
 
-  The source code is augmented with esnull's runtime checks and traces
-  as configured in |options|. By default a small runtime library to hold
-  esnull's state is embedded into the source code. Note that esnull
-  state is global: if multiple node modules / individual JS scripts
-  are instrumented separately, this runtime library is only initialized
-  once.
+  The source code is augmented with jsane's runtime checks and traces
+  as configured in |options|.
 
-  Available |options|:
-     safe_name: Safe global name to use for storing esnull state.
-                Defaults to __esnull
-     no_runtime: If truthy, no copy of the runtime is embedded
-                into the instrumented code. Use this to save space
-                if the runtime is already embedded by another module
-                that loads earlier.
+  Note that jsane state is global: if multiple node modules / individual
+  JS scripts are instrumented separately, only one instance of the
+  runtime library is used at runtime and tracing information spans
+  all modules.
+
+  Available |options|.
+     runtime_name: Safe global name to use for storing jsane state.
+                Defaults to '__rt'
+     runtime_linkage: Specifies how the runtime library (jsane-runtime)
+        is linked to. Possible values are the RUNTIME_XXX constants
+        |RUNTIME_EMBED|
+        |RUNTIME_REQUIRE| (default)
+        |RUNTIME_NONE|
+	 runtime_prefix: Only if |runtime_linkage === RUNTIME_REQUIRE|;
+	    specifies a prefix to add to the runtime module name.
 */
 exports.instrumentCode = function(text, options) {
-	safe_name = safe_name || DEFAULT_SAFE_NAME;
-	return falafel(text, function(node) {
-
-		if (node.type == 'BinaryExpression') {
-			wrapBinaryExpression(node);
-		}
-	});
+	var context = new Context(options || {});
+	return context.instrument(text);
 };
 
 
 // Boilerplate to enable use in the browser outside node.js
-})(typeof exports === 'undefined' ? this['esnull'] = {} : exports);
+})(typeof exports === 'undefined' ? this['jsane'] = {} : exports);
