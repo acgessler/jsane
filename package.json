@@ -1,0 +1,8 @@
+{
+  "name": "jsane",
+  "description": "Instruments JS to add runtime checks and provide data traces for common errors.",
+  "author": "Alexander Gessler <alexander.gessler@gmx.net>",
+  "dependencies": {
+    "esprima": "^1.2.2"
+  }
+}
