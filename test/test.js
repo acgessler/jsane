@@ -22,8 +22,8 @@ function runTestcase(id, options) {
 	;
 
 	options = options || {};
-	// Set runtime_prefix to make sure jsane-runtime is found locally
-	options.runtime_prefix = options.runtime_prefix || '../src/';
+	// Set jsane_node_module to make sure jsane-runtime is found locally
+	options.jsane_node_module = options.jsane_node_module || '../';
 
 	source = jsane.instrumentCode(source, options).toString();
 	expect(source).to.be.a('string');

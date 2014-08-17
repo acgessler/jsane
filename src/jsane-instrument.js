@@ -9,7 +9,8 @@ var	falafel = require('falafel')
 
 // Mixed constants
 var	DEFAULT_RUNTIME_NAME = '__rt'
-,	RUNTIME_NODE_MODULE = 'jsane-runtime'
+,	INDEX_NODE_MODULE = 'jsane'
+,	RUNTIME_NODE_MODULE = 'src/jsane-runtime'
 ;
 
 
@@ -67,9 +68,9 @@ var Context = function(options) {
 			return instrumented_text;
 		}
 		else if (runtime_linkage === exports.RUNTIME_REQUIRE) {
-			var runtime_name_binding = format('var %s = require(\'%s\');',
+			var runtime_name_binding = format('var %s = require(\'%s\').runtime;',
 				runtime_name,
-				(options.runtime_prefix || '') + RUNTIME_NODE_MODULE
+				(options.jsane_node_module || INDEX_NODE_MODULE) 
 			);
 			return runtime_name_binding + instrumented_text;
 		}
@@ -105,6 +106,7 @@ var Context = function(options) {
 		}
 	};
 
+	/////////////////////////////
 	this.error = function(text) {
 		throw new Error(text);
 	}
@@ -151,8 +153,9 @@ exports.RUNTIME_NONE = 'none';
         |RUNTIME_EMBED|
         |RUNTIME_REQUIRE| (default)
         |RUNTIME_NONE|
-	 runtime_prefix: Only if |runtime_linkage === RUNTIME_REQUIRE|;
-	    specifies a prefix to add to the runtime module name.
+	 jsane_node_module: Only if |runtime_linkage === RUNTIME_REQUIRE|;
+	    specifies the name or path of the jsane module. The default
+	    is 'jsane', this option is useful to use a local version.
 */
 exports.instrumentCode = function(text, options) {
 	var context = new Context(options || {});

@@ -7,7 +7,7 @@ var instrumentator = require('./jsane-instrument');
  *  Annotate |src_file| and save the result to |dest_file|,
  *  which can be the same as |src_file|.
  */
-function processFileAsync(src_file, dest_file) {
+exports.processFile = function(src_file, dest_file) {
 	var filePath = path.join(__dirname + '/start.html');
 
 	fs.readFile(src_file, {encoding : 'utf-8'}, function(err, data) {
@@ -27,7 +27,7 @@ function processFileAsync(src_file, dest_file) {
 function main(argv) {
 
 	for (var i = 0; i < argv._.length; ++i) {
-		processFileAsync(argv._[i]);
+		exports.processFile(argv._[i]);
 	}
 }
 
