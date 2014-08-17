@@ -3,15 +3,16 @@
   "description": "Instruments JS to add runtime checks and provide data traces for common errors.",
   "author": "Alexander Gessler <alexander.gessler@gmx.net>",
   "dependencies": {
-    "falafel": "^0.3.x"
+    "falafel": "^0.3.x",
+    "minimist": "^1.1.0"
   },
   "devDependencies": {
     "chai": "^1.9.1",
     "grunt-mocha-test": "^0.11.0",
     "mocha": "^1.21.x"
   },
-  "repository" : {
-  	"type" : "git",
-    "url" : "https://github.com/acgessler/jsane.git"
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/acgessler/jsane.git"
   }
 }
