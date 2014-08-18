@@ -56,11 +56,11 @@ var Context = function(options) {
 	};
 
 	/////////////////////////////
-	this.instrument = function(text) {	
+	this.instrument = function(text, file_name) {	
 		var instrumented_text = falafel(text, falafel_opts, function(node) {
 
 			if (node.type == 'BinaryExpression') {
-				self.instrumentBinaryExpression(node);
+				self.instrumentBinaryExpression(node, file_name);
 			}
 		});
 
@@ -89,7 +89,7 @@ var Context = function(options) {
 	};
 
 	/////////////////////////////
-	this.instrumentBinaryExpression = function(node) {
+	this.instrumentBinaryExpression = function(node, file_name) {
 		var op = node.operator;
 		if (op == '+' || op == '-' || op == '*' || op == '/' || op == '|' || op == '&') {
 			var subs = {
@@ -99,19 +99,18 @@ var Context = function(options) {
 				lhs : node.left.source(),
 				rhs : node.right.source(),
 				op : op,
-				runtime_name : runtime_name
+				runtime_name : runtime_name,
+				loc : file_name + ':' + node.loc.start.line
 			};
 
-			// If either of the operands is NULL-LIKE, probe the result of the
-			// arithmetic expression.
-			//
-			// If it is NULL-LIKE, it is likely to cause havoc later. If it
-			// is not NULL-LIKE, a potential issue has been silently swallowed.
+			console.log(node.loc);
+
 			node.update(self.wrap(sprintf(
 				'var %(tmp0)s = %(lhs)s, ' +
 				'%(tmp1)s = %(rhs)s, ' +
 				'%(tmp2)s = %(tmp1)s %(op)s %(tmp2)s; ' +
-				'return %(runtime_name)s.chkArith(%(tmp2)s, %(tmp0)s, %(tmp1)s, \'%(op)s\');',
+				'return %(runtime_name)s.chkArith(%(tmp2)s, %(tmp0)s, %(tmp1)s, ' +
+					'\'%(op)s\', \'%(loc)s\');',
 				subs)));
 		}
 	};
@@ -169,6 +168,8 @@ exports.RUNTIME_NONE = 'none';
   runtime library is used at runtime and tracing information spans
   all modules.
 
+  |file_name| appears in error/warn messages.
+
   Available |options|.
      runtime_name: Safe global name to use for storing jsane state.
                 Defaults to '__rt'
@@ -181,9 +182,9 @@ exports.RUNTIME_NONE = 'none';
 	    specifies the name or path of the jsane module. The default
 	    is 'jsane', this option is useful to use a local version.
 */
-exports.instrumentCode = function(text, options) {
+exports.instrumentCode = function(text, file_name, options) {
 	var context = new Context(options || {});
-	return context.instrument(text);
+	return context.instrument(text, file_name);
 };
 
 

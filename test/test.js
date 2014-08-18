@@ -25,7 +25,7 @@ function runTestcase(id, options) {
 	// Set jsane_node_module to make sure jsane-runtime is found locally
 	options.jsane_node_module = options.jsane_node_module || '../';
 
-	source = jsane.instrumentCode(source, options).toString();
+	source = jsane.instrumentCode(source, 'test.js', options).toString();
 	expect(source).to.be.a('string');
 
 	console.log(source);
