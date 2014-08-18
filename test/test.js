@@ -27,10 +27,12 @@ function runTestcase(id, options) {
 
 	source = jsane.instrumentCode(source, options).toString();
 	expect(source).to.be.a('string');
+
+	console.log(source);
+
 	expect(function() {
 		eval(source);
 	}).not.to.throw();
-	console.log(source);
 }
 
 // Main test case list - most simply invoke runTestcase()

@@ -77,11 +77,11 @@ var Context = function(options) {
 		else if (runtime_linkage === exports.RUNTIME_EMBED) {
 			// The runtime module populates |exports| because
 			// it thinks that it runs as node module.
-			var runtime_embedding = format('(function() { %s = {}; var exports = %s; %s })();',
+			var runtime_embedding = self.wrap(format('%s = {}; var exports = %s; %s',
 				runtime_name,
 				runtime_name,
 				getRuntimeText()
-			); 
+			)); 
 			return runtime_embedding + instrumented_text;
 		}
 		self.error("|options.runtime_linkage| must be one of the RUNTIME_XXX constants");
@@ -91,25 +91,56 @@ var Context = function(options) {
 	this.instrumentBinaryExpression = function(node) {
 		var op = node.operator;
 		if (op == '+' || op == '-' || op == '*' || op == '/' || op == '|' || op == '&') {
-			//var lhs = node.
+			var unique_name_0 = this.genUniqueName();
+			var unique_name_1 = this.genUniqueName();
+			var unique_name_2 = this.genUniqueName();
+
 			// If either of the operands is NULL-LIKE, probe the result of the
 			// arithmetic expression.
 			//
 			// If it is NULL-LIKE, it is likely to cause havoc later. If it
 			// is not NULL-LIKE, a potential issue has been silently swallowed.
-			node.update(format('%s.chkArith((%s), (%s), (%s), "%s")', 
-				runtime_name,
-				node.source(),
+			node.update(self.wrap(format(
+				'var %s = %s, %s = %s, %s = %s %s %s; ' +
+				'return %s.chkArith(%s, %s, %s, \'%s\');',
+				// Evaluate LHS
+				unique_name_0,
 				node.left.source(),
+				// Evaluate RHS
+				unique_name_1,
 				node.right.source(),
-				op));
+				// Evaluate LHS op RHS
+				unique_name_2,
+				unique_name_0,
+				op,
+				unique_name_1,
+				// Call chArith
+				runtime_name,
+				unique_name_2,
+				unique_name_0,
+				unique_name_1,
+				op)));
 		}
 	};
 
+	
 	/////////////////////////////
 	this.error = function(text) {
 		throw new Error(text);
-	}
+	};
+
+
+	/////////////////////////////
+	this.genUniqueName = function() {
+		// Get a real, unique name w.r.t to the current scope.
+		// For now, a random id.
+		return format('tmp_%d', Math.floor(Math.random() * 1000000000));
+	};
+
+	/////////////////////////////
+	this.wrap = function(text) {
+		return '(function() { ' + text + '})()';
+	};
 }
 
 
