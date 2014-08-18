@@ -4,7 +4,9 @@
   "author": "Alexander Gessler <alexander.gessler@gmx.net>",
   "dependencies": {
     "falafel": "^0.3.x",
-    "minimist": "^1.1.0"
+    "minimist": "^1.1.0",
+    "npm": "^1.4.23",
+    "sprintf-js": "0.0.7"
   },
   "devDependencies": {
     "chai": "^1.9.1",

@@ -4,6 +4,7 @@
 // Module imports
 var	falafel = require('falafel')
 ,	format = require('util').format
+,	sprintf = require('sprintf-js').sprintf
 ,	fs = require('fs')
 ;
 
@@ -91,35 +92,27 @@ var Context = function(options) {
 	this.instrumentBinaryExpression = function(node) {
 		var op = node.operator;
 		if (op == '+' || op == '-' || op == '*' || op == '/' || op == '|' || op == '&') {
-			var unique_name_0 = this.genUniqueName();
-			var unique_name_1 = this.genUniqueName();
-			var unique_name_2 = this.genUniqueName();
+			var subs = {
+				tmp0 : this.genUniqueName(),
+				tmp1 : this.genUniqueName(),
+				tmp2 : this.genUniqueName(),
+				lhs : node.left.source(),
+				rhs : node.right.source(),
+				op : op,
+				runtime_name : runtime_name
+			};
 
 			// If either of the operands is NULL-LIKE, probe the result of the
 			// arithmetic expression.
 			//
 			// If it is NULL-LIKE, it is likely to cause havoc later. If it
 			// is not NULL-LIKE, a potential issue has been silently swallowed.
-			node.update(self.wrap(format(
-				'var %s = %s, %s = %s, %s = %s %s %s; ' +
-				'return %s.chkArith(%s, %s, %s, \'%s\');',
-				// Evaluate LHS
-				unique_name_0,
-				node.left.source(),
-				// Evaluate RHS
-				unique_name_1,
-				node.right.source(),
-				// Evaluate LHS op RHS
-				unique_name_2,
-				unique_name_0,
-				op,
-				unique_name_1,
-				// Call chArith
-				runtime_name,
-				unique_name_2,
-				unique_name_0,
-				unique_name_1,
-				op)));
+			node.update(self.wrap(sprintf(
+				'var %(tmp0)s = %(lhs)s, ' +
+				'%(tmp1)s = %(rhs)s, ' +
+				'%(tmp2)s = %(tmp1)s %(op)s %(tmp2)s; ' +
+				'return %(runtime_name)s.chkArith(%(tmp2)s, %(tmp0)s, %(tmp1)s, \'%(op)s\');',
+				subs)));
 		}
 	};
 
