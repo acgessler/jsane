@@ -39,20 +39,20 @@ describe('esnull', function() {
    describe('instrumentation', function() {
    		describe('runtime', function() {
    			it('should work with require()', function() {
-   				runTestcase(1, {
+   				runTestcase(1000, {
    					runtime_linkage : jsane.RUNTIME_REQUIRE
    				});
-   				runTestcase(2, {
+   				runTestcase(1001, {
    					runtime_linkage : jsane.RUNTIME_REQUIRE,
    					runtime_name : 'magic_runtime_name'
    				});
    			});
 
    			it('should be embeddable', function() {
-   				runTestcase(1, {
+   				runTestcase(1000, {
    					runtime_linkage : jsane.RUNTIME_EMBED
    				});
-   				runTestcase(2, {
+   				runTestcase(1001, {
    					runtime_linkage : jsane.RUNTIME_EMBED,
    					runtime_name : 'magic_runtime_name'
    				});
@@ -60,23 +60,27 @@ describe('esnull', function() {
 
    			it('should be able to pre-exist', function() {
    				global.magic_runtime_name = require('../src/jsane-runtime');
-   				runTestcase(2, {
+   				runTestcase(1001, {
    					runtime_linkage : jsane.RUNTIME_NONE,
    					runtime_name : 'magic_runtime_name'
    				});
 
    				// The same, minified version of the runtime
    				global.magic_runtime_name2 = require('../compiled/jsane-runtime.min');
-   				runTestcase(2, {
+   				runTestcase(1001, {
    					runtime_linkage : jsane.RUNTIME_NONE,
    					runtime_name : 'magic_runtime_name2'
    				});
    			});
    		});
 
-   		describe('checks', function() {
-   			it('should warn if JS arithmetic unexpectedly swallows bad operands (i.e. 2 + null)', function() {
-   				runTestcase(0);
+		describe('config', function() {
+   			
+   		});
+
+   		describe('check', function() {
+   			it('W1: should warn if JS arithmetic unexpectedly swallows bad operands (i.e. 2 + null)', function() {
+   				runTestcase(1);
    			});
    		});
 	});
