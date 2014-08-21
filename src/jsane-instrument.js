@@ -108,7 +108,7 @@ var Context = function(options) {
 			node.update(self.wrap(sprintf(
 				'var %(tmp0)s = %(lhs)s, ' +
 				'%(tmp1)s = %(rhs)s, ' +
-				'%(tmp2)s = %(tmp1)s %(op)s %(tmp2)s; ' +
+				'%(tmp2)s = %(tmp0)s %(op)s %(tmp1)s; ' +
 				'return %(runtime_name)s.chkArith(%(tmp2)s, %(tmp0)s, %(tmp1)s, ' +
 					'\'%(op)s\', \'%(loc)s\');',
 				subs)));
