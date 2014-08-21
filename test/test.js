@@ -9,7 +9,6 @@ var	chai = require('chai')
 // Shortcuts to common chai functions
 var expect = chai.expect;
 
-
 /** Instrument and run ./testcase/test<id>.js and verify that all
     warnings and errors occur as defined in testcase comments. 
 
@@ -54,7 +53,7 @@ describe('esnull', function() {
    					runtime_linkage : jsane.RUNTIME_EMBED
    				});
    				runTestcase(2, {
-   					runtime_linkage : jsane.RUNTIME_REQUIRE,
+   					runtime_linkage : jsane.RUNTIME_EMBED,
    					runtime_name : 'magic_runtime_name'
    				});
    			});
@@ -64,6 +63,13 @@ describe('esnull', function() {
    				runTestcase(2, {
    					runtime_linkage : jsane.RUNTIME_NONE,
    					runtime_name : 'magic_runtime_name'
+   				});
+
+   				// The same, minified version of the runtime
+   				global.magic_runtime_name2 = require('../compiled/jsane-runtime.min');
+   				runTestcase(2, {
+   					runtime_linkage : jsane.RUNTIME_NONE,
+   					runtime_name : 'magic_runtime_name2'
    				});
    			});
    		});
