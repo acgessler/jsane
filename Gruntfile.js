@@ -1,9 +1,20 @@
 module.exports = function(grunt) {
 
-  // Add the grunt-mocha-test tasks.
+  grunt.loadNpmTasks('grunt-contrib-uglify');
   grunt.loadNpmTasks('grunt-mocha-test');
 
   grunt.initConfig({
+    uglify: {
+      options: {
+        mangle: true
+      },
+      runtime: {
+        files: {
+          'compiled/jsane-runtime.min.js': ['src/jsane-runtime.js']
+        }
+      }
+    },
+
     // Configure a mochaTest task
     mochaTest: {
       test: {
@@ -15,5 +26,5 @@ module.exports = function(grunt) {
     }
   });
 
-  grunt.registerTask('default', 'mochaTest');
+  grunt.registerTask('default', 'uglify', 'mochaTest');
 };
