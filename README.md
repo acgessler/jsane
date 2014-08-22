@@ -1,7 +1,9 @@
 jsane
 =====
 
-Adding sanity checks and data tracing to your JavaScript code.
+Adding sanity checks and data tracing to your JavaScript code. Experimental and work in progress.
+
+[![Build Status](https://travis-ci.org/acgessler/jsane.svg?branch=master)](https://travis-ci.org/acgessler/jsane)
 
 Instead of 
 
