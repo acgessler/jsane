@@ -82,6 +82,10 @@ describe('esnull', function() {
    			it('W1: should warn if JS arithmetic unexpectedly swallows bad operands (i.e. 2 + null)', function() {
    				runTestcase(1);
    			});
+
+   			it('W2: should warn if JS arithmetic propagates a bad operand (i.e. undefined * 2)', function() {
+   				runTestcase(2);
+   			});
    		});
 	});
 });

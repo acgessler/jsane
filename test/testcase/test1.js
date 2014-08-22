@@ -18,15 +18,20 @@ var c2 = 2 + b2;
 
 // 2 + false === 2
 "<<[expect=W1]";
-var c2 = a + false;
+var c3 = a + false;
 ">>";
 
 // 1.3|2 === 3 (No check)
 "<<[expect=]";
-var c2 = 1.2 | a;
+var c4 = 1.2 | a;
 ">>";
 
 // null|2 === 2
 "<<[expect=W1]";
-var c2 = b1 | a;
+var c5 = b1 | a;
+">>";
+
+// null + null === 0
+"<<[expect=W1]";
+var c6 = null + b1;
 ">>";

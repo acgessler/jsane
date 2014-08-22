@@ -53,7 +53,8 @@ var checks_cfg = [
 	// 0 - Index of the check. Do never change.
 	[LV_WRN, 
 		// Message head. This is what always appears in the output
-		"An arithmetic expression of type '{3}' produced a non-numeric or non-finite result",
+		"An arithmetic expression of type '{3}' produced a non-" +
+			"numeric or non-finite result",
 		// Message details. This may not be shown depending on output settings
 		"Expression: '{1} {3} {2} => {0}'",
 		// Category, i.e. "What could this hint at?"
@@ -62,7 +63,8 @@ var checks_cfg = [
 
 	// 1
 	[LV_WRN, 
-		"An arithmetic expression of type '{3}' on non-numeric or non-finite operands produced a finite result.",
+		"An arithmetic expression of type '{3}' on non-numeric " +
+			"or non-finite operands produced a finite result.",
 		"Expression: '{1} {3} {2} => {0}'",
 		CAT_BUG_HIDDEN
 	],
@@ -91,7 +93,7 @@ var check = function(idx, format_arguments) {
 		return;
 	}
 
-	var message_head     = format(message, format_arguments)
+	var	message_head     = format(message, format_arguments)
 	,	message_detail   = format(detail, format_arguments)
 	,	message_category = category_texts[category]
 	;

@@ -1,3 +1,11 @@
+/** 
+Jsane - Javascript Sanity Instrumentation Toolkit
+See top level LICENSE or github.com/acgessler/jsane
+
+Main instrumentation library. Only executes in a node environment.
+*/
+
+
 (function(exports){
 "use strict";
 
