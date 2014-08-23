@@ -79,6 +79,13 @@ var format = function(spec, args) {
 };
 
 
+var defaultPrintFunc = function(severity, message) {
+	(severity === LV_ERR ? console.error : console.log)(message);
+};
+
+var print_func = defaultPrintFunc;
+
+
 // Trigger runtime check No |idx|. Action taken depends on
 // global configuration in |checks_cfg|.
 var check = function(idx, format_arguments) {
@@ -107,7 +114,7 @@ var check = function(idx, format_arguments) {
 		message_category
 	]);
 
-	(severity === LV_ERR ? console.error : console.log)(full_message);
+	print_func(severity, message);
 
 	// TODO: add trace (could be in a group when running in a browser)
 
@@ -141,6 +148,13 @@ exports.info = function() {
 	return 'jsane-runtime library, v0.1';
 };
 
+// Set/reset custom printing function
+// of type |function(severity, message)|
+exports.setPrintFunc = function(f) {
+	print_func = (f === undefined ? defaultPrintFunc : f);
+};
+
+// Checks on |a| |op| |b| having resulted in |value|
 exports.chkArith = function(value, a, b, op, where) {
 	// If either of the operands is not, probe the result of the
 	// arithmetic expression.
