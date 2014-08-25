@@ -78,9 +78,12 @@ var format = function(spec, args) {
 	return spec;
 };
 
+// Prefix for all messages produced by JSane
+var message_prefix = "Jsane ";
 
-var defaultPrintFunc = function(severity, message) {
-	(severity === LV_ERR ? console.error : console.log)(message);
+
+var defaultPrintFunc = function(message) {
+	(message[0] == 'E' ? console.error : console.log)(message_prefix + message);
 };
 
 var print_func = defaultPrintFunc;
@@ -106,7 +109,7 @@ var check = function(idx, format_arguments) {
 	;
 
 
-	var full_message = format("Jsane {0}{1}: {2}\n\t{3}\n\tCategory: {4}\n", [
+	var full_message = format("{0}{1}: {2}\n\t{3}\n\tCategory: {4}\n", [
 		severity === LV_ERR ? 'E' : 'W',
 		idx,
 		message_head,
@@ -114,7 +117,7 @@ var check = function(idx, format_arguments) {
 		message_category
 	]);
 
-	print_func(severity, message);
+	print_func(full_message);
 
 	// TODO: add trace (could be in a group when running in a browser)
 
@@ -148,13 +151,14 @@ exports.info = function() {
 	return 'jsane-runtime library, v0.1';
 };
 
-// Set/reset custom printing function
-// of type |function(severity, message)|
+/** Set/reset custom printing function
+    of type |function(message)|
+ */
 exports.setPrintFunc = function(f) {
 	print_func = (f === undefined ? defaultPrintFunc : f);
 };
 
-// Checks on |a| |op| |b| having resulted in |value|
+/** Checks on |a| |op| |b| having resulted in |value| */
 exports.chkArith = function(value, a, b, op, where) {
 	// If either of the operands is not, probe the result of the
 	// arithmetic expression.

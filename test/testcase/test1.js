@@ -31,7 +31,9 @@ var c4 = 1.2 | a;
 var c5 = b1 | a;
 ">>";
 
-// null + null === 0
-"<<[expect=W1]";
+// Sneaking in a meta-test for whether the assertion syntax
+// can handle multiple conditions.
+"<<[expect=W1,W0]";
 var c6 = null + b1;
+c6 = undefined * 2;
 ">>";

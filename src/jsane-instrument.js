@@ -111,8 +111,6 @@ var Context = function(options) {
 				loc : file_name + ':' + node.loc.start.line
 			};
 
-			console.log(node.loc);
-
 			node.update(self.wrap(sprintf(
 				'var %(tmp0)s = %(lhs)s, ' +
 				'%(tmp1)s = %(rhs)s, ' +
@@ -194,6 +192,8 @@ exports.instrumentCode = function(text, file_name, options) {
 	var context = new Context(options || {});
 	return context.instrument(text, file_name);
 };
+
+exports.DEFAULT_RUNTIME_NAME = DEFAULT_RUNTIME_NAME;
 
 
 // Boilerplate to enable use in the browser outside node.js
