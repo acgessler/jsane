@@ -14,6 +14,7 @@ var	falafel = require('falafel')
 ,	format = require('util').format
 ,	sprintf = require('sprintf-js').sprintf
 ,	fs = require('fs')
+,	_ = require('underscore')._
 ;
 
 // Mixed constants
@@ -70,6 +71,11 @@ var Context = function(options) {
 			if (node.type == 'BinaryExpression') {
 				self.instrumentBinaryExpression(node, file_name);
 			}
+			else if (node.type == 'ExpressionStatement') {
+				if (node.expression.type == 'CallExpression') {
+					self.instrumentFunctionCall(node.expression, file_name);
+				}
+			}
 		});
 
 		// Link in runtime library
@@ -118,6 +124,57 @@ var Context = function(options) {
 				'return %(runtime_name)s.chkArith(%(tmp2)s, %(tmp0)s, %(tmp1)s, ' +
 					'\'%(op)s\', \'%(loc)s\');',
 				subs)));
+		}
+	};
+
+
+	/////////////////////////////
+	this.instrumentFunctionCall = function(node, file_name) {
+		// Callee.type can be at least: "Identifier", "MemberExpression", ?
+		var callee = node.callee;
+
+		var js_args_array = '[' + _.map(node.arguments, function(arg) {
+			return arg.source();
+		}).join(',') + ']';
+
+		var subs = {
+				tmp0 : this.genUniqueName(),
+				tmp1 : this.genUniqueName(),
+				callee : callee.source(),
+				args : js_args_array,
+				runtime_name : runtime_name,
+				loc : file_name + ':' + node.loc.start.line
+		};
+
+		// Function calls are instrumented as
+		//   jsane.chkCall(func, this, [args..], func_expr, where)
+		//
+		// To determine |this| we need to look at |func_expr|:
+		//   - If function is called with a plain identifier
+		//          a() 
+		//     |this| is |undefined| or |window| depending on
+		//     whether strict mode is set for |func| or not.
+		//     
+		//   - If function is called with a MemberExpression
+		//         ....c.f()    
+		//         ....c["f"]()
+		//     it is |c| which determines |this|. Since in the second
+		//     example the expression is computed (and "f" could be
+		//     an arbitrary function), it can have side-effects and
+		//     should be evaluated exactly once, which complicates
+		//     things.
+		if (callee.type == 'Identifier') {
+			node.update(self.wrap(sprintf(
+				'var %(tmp0)s = %(callee)s, ' +
+				'%(tmp1)s = "%(callee)s"; ' +
+				'return %(runtime_name)s.chkCall(%(tmp0)s, %(args)s, %(tmp1)s, \'%(loc)s\');',
+			subs)));
+		}
+		else if (callee.type == 'MemberExpression') {
+			// TODO
+		}
+		else {
+			console.error('Callee.type not supported: ' + callee.type + '; skipping');
 		}
 	};
 

@@ -68,6 +68,13 @@ var checks_cfg = [
 		"Expression: '{1} {3} {2} => {0}'",
 		CAT_BUG_HIDDEN
 	],
+
+	// 2
+	[LV_ERR, 
+		"Attempted to call a non-callable expression",
+		"Function Expression: '{3}  is {0}'",
+		CAT_BUG_EARLIER
+	],
 ];
 
 // Poor-man's format. Substitute {i} with args[i]
@@ -175,6 +182,17 @@ exports.chkArith = function(value, a, b, op, where) {
 	}
 
 	return value;
+}
+
+/** Checks on func(*args) where |func_expr| is the raw source
+    expression that evaluated to |func| and |func_this|
+    is the value of |this| to use. */
+exports.chkCall = function(func, func_this, args, func_expr, where) {
+	if (!func) {
+		check(2, arguments);
+	}
+
+	return func.apply(func_this, args)
 }
 
 // Boilerplate to enable use in the browser outside node.js

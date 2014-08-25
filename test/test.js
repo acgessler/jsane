@@ -153,6 +153,10 @@ describe('esnull', function() {
    			it('W1: should warn if JS arithmetic unexpectedly swallows bad operands (i.e. 2 + null)', function() {
    				runTestcase(1);
    			});
+
+   			it('E2: should err if a non-callable expression is called', function() {
+   				runTestcase(2);
+   			});
    		});
 	});
 });
