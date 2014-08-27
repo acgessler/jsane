@@ -167,11 +167,45 @@ exports.setPrintFunc = function(f) {
 
 /** Checks on |a| |op| |b| having resulted in |value| */
 exports.chkArith = function(value, a, b, op, where) {
-	// If either of the operands is not, probe the result of the
-	// arithmetic expression.
+	if (op == '+') {
+		// See ECMA5.1 #11.6.1
+		// If one of the operands is a string after applying the
+		// ToPrimitive() abstract operation, string concatenation
+		// is performed.
+
+
+		// W3: If an operand is a string after ToPrimitive()
+		// occurs, check if the operand was originally an
+		// Object that lacks a "proper" toString() (which
+		// is decided heuristically).
+		//
+		// This catches cases such as
+		//   {} + 2  => "[object Object]2"
+		//   {} + {} => "[object Object][object Object]"
+
+
+		// W4: If two arrays are added (with the intent to concatenate
+		// them), ToPrimitive() makes them strings which are then
+		// concatenated.
+	}
+	else {
+		// For the other binary ops, the ToNumber() abstract operation
+		// is applied first. See for example ECMA5.1 #11.6.2.
+
+
+		// W5: If one operand is a string, it is parsed into a number
+		// as per ECMA5.1 #9.3.1. This is oftentimes unexpected,
+		// and asymmetric with addition:
+		//    '3' + 2 => '32'
+		//    '3' - 2 => 1
+	}
+
+
+	// W0, W1: If either of the operands is not a finite number,
+	// probe the result of the arithmetic expression.
 	//
-	// If it is f, it is likely to cause havoc later. If it
-	// is not finite, a potential issue has been silently swallowed.
+	// If it is not finite either, it is likely to cause havoc later.
+	// If it is ok, a potential issue has been silently swallowed.
 	if (!isFiniteNumber(a) || !isFiniteNumber(b)) {
 		if (!isFiniteNumber(value)) {
 			check(0, arguments);
@@ -188,6 +222,7 @@ exports.chkArith = function(value, a, b, op, where) {
     expression that evaluated to |func| and |func_this|
     is the value of |this| to use. */
 exports.chkCall = function(func, func_this, args, func_expr, where) {
+	// E2: Attempt to call non-callable
 	if (!func) {
 		check(2, arguments);
 	}
