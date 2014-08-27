@@ -65,8 +65,21 @@ var Context = function(options) {
 	};
 
 	/////////////////////////////
-	this.instrument = function(text, file_name) {	
+	this.instrument = function(text, file_name) {
+
+		var ignored_lines = this.findIgnoredLines(text);
 		var instrumented_text = falafel(text, falafel_opts, function(node) {
+
+			// Skip all nodes that touch ignored lines
+			// AST line numbers are one-based
+			var start = node.loc.start.line;
+			var end = node.loc.end.line;
+
+			for (var i = start - 1; i <= end; ++i) {
+				if (ignored_lines[i]) {
+					return;
+				}
+			}
 
 			if (node.type == 'BinaryExpression') {
 				self.instrumentBinaryExpression(node, file_name, text);
@@ -204,6 +217,14 @@ var Context = function(options) {
 		throw new Error(text);
 	};
 
+	this.warn = function(text) {
+		console.warn(text);
+	};
+
+	this.info = function(text) {
+		console.info(text);
+	};
+
 
 	/////////////////////////////
 	this.genUniqueName = function() {
@@ -223,6 +244,48 @@ var Context = function(options) {
 			falafel_node.range[0],
 			falafel_node.range[1]
 		);
+	};
+
+	/////////////////////////////
+	// Return an array which tells for each line if it should be ignored
+	// for instrumentation.
+	this.findIgnoredLines = function(text) {
+		var lines = text.split('\n');
+		var lines_ignored = new Array(lines.length);
+		if (lines.length === 0) {
+			return lines_ignored;
+		}
+
+		var is_off = lines_ignored[0] = false;
+
+		for (var i = 0; i < lines.length - 1; ++i) {
+			var line = lines[i];
+			var match = line.match(/\s*\/\/\s*JSane:\s*(\w+)\s*$/m);
+			if (match === null) {
+				lines_ignored[i + 1] = is_off;
+				continue;
+			}
+			var verb = match[1];
+			if (verb == 'on' || verb == 'off') {
+				var want_off = verb == 'off';
+				if (want_off === is_off) {
+					this.warn('Duplicate "JSane: ' + verb + '" instruction');
+				}
+				else {
+					is_off = want_off;
+				}
+			}
+			else if (verb == 'ignore') {
+				if (is_off) {
+					this.warn('Duplicate "JSane: ignore" instruction');
+				}
+				lines_ignored[i + 1] = true;
+			}
+			else {
+				this.error('Verb in "Jsane: <verb>" comment syntax not recognized: ' + verb);
+			}
+		}
+		return lines_ignored;
 	};
 }
 
