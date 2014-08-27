@@ -182,7 +182,7 @@ exports.chkArith = function(value, a, b, op, where) {
 	}
 
 	return value;
-}
+};
 
 /** Checks on func(*args) where |func_expr| is the raw source
     expression that evaluated to |func| and |func_this|
@@ -192,8 +192,8 @@ exports.chkCall = function(func, func_this, args, func_expr, where) {
 		check(2, arguments);
 	}
 
-	return func.apply(func_this, args)
-}
+	return func.apply(func_this, args);
+};
 
 // Boilerplate to enable use in the browser outside node.js
 })(typeof exports === 'undefined' ? this['__rt'] = {} : exports);

@@ -69,14 +69,14 @@ var Context = function(options) {
 		var instrumented_text = falafel(text, falafel_opts, function(node) {
 
 			if (node.type == 'BinaryExpression') {
-				self.instrumentBinaryExpression(node, file_name);
+				self.instrumentBinaryExpression(node, file_name, text);
 			}
-			else if (node.type == 'ExpressionStatement') {
-				if (node.expression.type == 'CallExpression') {
-					self.instrumentFunctionCall(node.expression, file_name);
-				}
+			else if (node.type == 'CallExpression') {
+				self.instrumentFunctionCall(node, file_name, text);
 			}
 		});
+
+		console.log(instrumented_text);
 
 		// Link in runtime library
 		if (runtime_linkage === exports.RUNTIME_NONE) {
@@ -96,7 +96,7 @@ var Context = function(options) {
 				runtime_name,
 				runtime_name,
 				getRuntimeText()
-			)); 
+			)) + ';'; 
 			return runtime_embedding + instrumented_text;
 		}
 		self.error("|options.runtime_linkage| must be one of the RUNTIME_XXX constants");
@@ -129,7 +129,7 @@ var Context = function(options) {
 
 
 	/////////////////////////////
-	this.instrumentFunctionCall = function(node, file_name) {
+	this.instrumentFunctionCall = function(node, file_name, original_text) {
 		// Callee.type can be at least: "Identifier", "MemberExpression", ?
 		var callee = node.callee;
 
@@ -140,7 +140,9 @@ var Context = function(options) {
 		var subs = {
 				tmp0 : this.genUniqueName(),
 				tmp1 : this.genUniqueName(),
+				tmp2 : this.genUniqueName(),
 				callee : callee.source(),
+				original_callee : JSON.stringify(this.getOriginalSource(callee, original_text)),
 				args : js_args_array,
 				runtime_name : runtime_name,
 				loc : file_name + ':' + node.loc.start.line
@@ -152,8 +154,11 @@ var Context = function(options) {
 		// To determine |this| we need to look at |func_expr|:
 		//   - If function is called with a plain identifier
 		//          a() 
-		//     |this| is |undefined| or |window| depending on
+		//     |this| is |undefined| or the global object depending on
 		//     whether strict mode is set for |func| or not.
+		//     Luckily, when using apply() to invoke,
+		//     passing |undefined| yields the correct result
+		//     (substituting global as needed).
 		//     
 		//   - If function is called with a MemberExpression
 		//         ....c.f()    
@@ -166,12 +171,27 @@ var Context = function(options) {
 		if (callee.type == 'Identifier') {
 			node.update(self.wrap(sprintf(
 				'var %(tmp0)s = %(callee)s, ' +
-				'%(tmp1)s = "%(callee)s"; ' +
-				'return %(runtime_name)s.chkCall(%(tmp0)s, %(args)s, %(tmp1)s, \'%(loc)s\');',
+				'%(tmp1)s = %(original_callee)s; ' +
+				'return %(runtime_name)s.chkCall(%(tmp0)s, undefined, %(args)s, %(tmp1)s, \'%(loc)s\');',
 			subs)));
 		}
-		else if (callee.type == 'MemberExpression') {
-			// TODO
+		else if (callee.type == 'MemberExpression') {		
+			var property = callee.property.source();
+			if (callee.computed) {
+				subs.property_access = '[' + property + ']';
+			}
+			else {
+				subs.property_access = '.' + property;
+			}
+	
+			subs.func_this = callee.object.source();
+
+			node.update(self.wrap(sprintf(
+				'var %(tmp0)s = %(func_this)s, ' +
+				'    %(tmp1)s = %(tmp0)s%(property_access)s, ' +
+				'    %(tmp2)s = %(original_callee)s; ' +
+				'return %(runtime_name)s.chkCall(%(tmp1)s, %(tmp0)s, %(args)s, %(tmp2)s, \'%(loc)s\');',
+			subs)));
 		}
 		else {
 			console.error('Callee.type not supported: ' + callee.type + '; skipping');
@@ -195,6 +215,14 @@ var Context = function(options) {
 	/////////////////////////////
 	this.wrap = function(text) {
 		return '(function() { ' + text + '})()';
+	};
+
+	/////////////////////////////
+	this.getOriginalSource = function(falafel_node, original_text) {
+		return original_text.substring(
+			falafel_node.range[0],
+			falafel_node.range[1]
+		);
 	};
 }
 
