@@ -157,6 +157,10 @@ describe('esnull', function() {
    			it('E2: should err if a non-callable expression is called', function() {
    				runTestcase(2);
    			});
+
+   			it('W3: should warn if arrays are added using +', function() {
+   				runTestcase(3);
+   			});
    		});
 	});
 });

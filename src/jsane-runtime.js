@@ -75,6 +75,13 @@ var checks_cfg = [
 		"Function Expression: '{3}  is {0}'",
 		CAT_BUG_EARLIER
 	],
+
+	// 3
+	[LV_WRN, 
+		"Adding arrays causes their string representations to be conatenated",
+		"Left array: '{1}, right array: {2}'",
+		CAT_BUG_SOURCE
+	],
 ];
 
 // Poor-man's format. Substitute {i} with args[i]
@@ -147,6 +154,14 @@ var isNumber = function(a) {
 	return typeof a  == 'number';
 };
 
+var isArray = Array.isArray || function(arg) {
+	return Object.prototype.toString.call(arg) === "[object Array]";
+};
+
+var isString = function(s) {
+	return (typeof s == 'string' || s instanceof String);
+};
+
 var isFiniteNumber = function(a) {
 	return isNumber(a) && isFinite(a);
 };
@@ -174,7 +189,7 @@ exports.chkArith = function(value, a, b, op, where) {
 		// is performed.
 
 
-		// W3: If an operand is a string after ToPrimitive()
+		// W4: If an operand is a string after ToPrimitive()
 		// occurs, check if the operand was originally an
 		// Object that lacks a "proper" toString() (which
 		// is decided heuristically).
@@ -184,9 +199,17 @@ exports.chkArith = function(value, a, b, op, where) {
 		//   {} + {} => "[object Object][object Object]"
 
 
-		// W4: If two arrays are added (with the intent to concatenate
+		// W3: If two arrays are added (with the intent to concatenate
 		// them), ToPrimitive() makes them strings which are then
 		// concatenated.
+		if (isArray(a) && isArray(b)) {
+			check(3, arguments);
+			return value;
+		}
+
+		if (isString(value)) {
+			return value;
+		}
 	}
 	else {
 		// For the other binary ops, the ToNumber() abstract operation
