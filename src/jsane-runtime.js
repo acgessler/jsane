@@ -89,6 +89,13 @@ var checks_cfg = [
 		"Expression: '{1} {3} {2} => {0}'",
 		CAT_BUG_SOURCE
 	],
+
+	// 5
+	[LV_WRN, 
+		"Operand of arithmetic expression is a string that gets auto-parsed as number",
+		"Expression: '{1} {3} {2} => {0}'",
+		CAT_BUG_EARLIER
+	],
 ];
 
 // Poor-man's format. Substitute {i} with args[i]
@@ -235,12 +242,15 @@ exports.chkArith = function(value, a, b, op, where) {
 		// For the other binary ops, the ToNumber() abstract operation
 		// is applied first. See for example ECMA5.1 #11.6.2.
 
-
 		// W5: If one operand is a string, it is parsed into a number
 		// as per ECMA5.1 #9.3.1. This is oftentimes unexpected,
 		// and asymmetric with addition:
 		//    '3' + 2 => '32'
 		//    '3' - 2 => 1
+		if (isString(a) || isString(b)) {
+			check(5, arguments);
+			return value;
+		}
 	}
 
 

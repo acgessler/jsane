@@ -165,6 +165,10 @@ describe('esnull', function() {
    			it('W4: should warn if objects are converted to strings without having a proper string conversion', function() {
    				runTestcase(4);
    			});
+
+   			it('W5: should warn if strings participating in arithmetic are auto-parsed as numbers', function() {
+   				runTestcase(5);
+   			});
    		});
 	});
 });
