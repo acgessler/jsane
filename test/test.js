@@ -146,11 +146,11 @@ describe('esnull', function() {
    		});
 
    		describe('check', function() {
-   			it('W0: should warn if JS arithmetic propagates a bad operand (i.e. undefined * 2)', function() {
+   			it('W0: should warn if JS arithmetic propagates a bad operand', function() {
    				runTestcase(0);
    			});
 
-   			it('W1: should warn if JS arithmetic unexpectedly swallows bad operands (i.e. 2 + null)', function() {
+   			it('W1: should warn if JS arithmetic unexpectedly swallows bad operands', function() {
    				runTestcase(1);
    			});
 
@@ -160,6 +160,10 @@ describe('esnull', function() {
 
    			it('W3: should warn if arrays are added using +', function() {
    				runTestcase(3);
+   			});
+
+   			it('W4: should warn if objects are converted to strings without having a proper string conversion', function() {
+   				runTestcase(4);
    			});
    		});
 	});

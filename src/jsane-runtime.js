@@ -82,6 +82,13 @@ var checks_cfg = [
 		"Left array: '{1}, right array: {2}'",
 		CAT_BUG_SOURCE
 	],
+
+	// 4
+	[LV_WRN, 
+		"String concatenation involes an object operand without a proper string conversion",
+		"Expression: '{1} {3} {2} => {0}'",
+		CAT_BUG_SOURCE
+	],
 ];
 
 // Poor-man's format. Substitute {i} with args[i]
@@ -162,8 +169,17 @@ var isString = function(s) {
 	return (typeof s == 'string' || s instanceof String);
 };
 
+var isObject = function(s) {
+	return s !== null && typeof s === 'object';
+}
+
 var isFiniteNumber = function(a) {
 	return isNumber(a) && isFinite(a);
+};
+
+var hasBadStringConversion = function(a) {
+	// Check if toString() resolves to |Object.prototype|
+	return a.toString === Object.prototype.toString;
 };
 
 
@@ -197,7 +213,11 @@ exports.chkArith = function(value, a, b, op, where) {
 		// This catches cases such as
 		//   {} + 2  => "[object Object]2"
 		//   {} + {} => "[object Object][object Object]"
-
+		if ((isObject(a) && hasBadStringConversion(a)) ||
+			(isObject(b) && hasBadStringConversion(b))) {
+			check(4, arguments);
+			return value;
+		}
 
 		// W3: If two arrays are added (with the intent to concatenate
 		// them), ToPrimitive() makes them strings which are then
