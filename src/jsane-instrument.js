@@ -87,6 +87,9 @@ var Context = function(options) {
 			else if (node.type == 'CallExpression') {
 				self.instrumentFunctionCall(node, file_name, text);
 			}
+			else if (node.type == 'AssignmentExpression') {
+				self.instrumentAssignmentExpression(node, file_name, text);
+			}
 		});
 
 		console.log(instrumented_text);
@@ -115,9 +118,41 @@ var Context = function(options) {
 		self.error("|options.runtime_linkage| must be one of the RUNTIME_XXX constants");
 	};
 
+
+	/////////////////////////////
+	this.instrumentAssignmentExpression = function(node, file_name) {
+		var op = node.operator;
+		if (op != '=') {
+			// Compound assignment operations |a @= b| are evaluated
+			// as |a = (a @ b)|. Because |a| is a Reference (resolved
+			// name binding), it is safe to evaluate twice, once
+			// to read and a second time to write a value. This works
+			// even for properties.
+			//
+			// See ECMA5.1 #11.3.2
+
+			var subs = {
+				lhs : node.left.source(),
+				runtime_name : runtime_name,
+				loc : file_name + ':' + node.loc.start.line
+			};
+
+			this.instrumentBinaryExpression(node, file_name);
+
+			subs.source = node.source();
+			node.update(sprintf(
+				'%(lhs)s = %(source)s',
+				subs));
+		}
+	};
+
+
 	/////////////////////////////
 	this.instrumentBinaryExpression = function(node, file_name) {
 		var op = node.operator;
+		if (op[1] == '=') { // Support compound assignment
+			op = op[0];
+		}
 		if (op == '+' || op == '-' || op == '*' || op == '/' || op == '|' || op == '&') {
 			var subs = {
 				tmp0 : this.genUniqueName(),
