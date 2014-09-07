@@ -131,16 +131,6 @@ var Context = function(options) {
 			prefix : '',
 		};
 
-		if (op != '=') {
-			// Compound assignment operations |a @= b| are evaluated
-			// as |a` = (a` @ b)| where a` is the evaluation of a.
-			//
-			// See ECMA5.1 #11.3.2
-			//this.instrumentBinaryExpression(node, file_name);
-			//subs.rhs = node.source();
-			return;
-		}
-
 		if (node.left.type === 'MemberExpression') {
 			subs.split_func = this.splitMemberExpression(node.left);
 			subs.lhs_tmp0 = this.genUniqueName();
@@ -181,6 +171,31 @@ var Context = function(options) {
 			subs.rhs_scope_id = 'null';
 			subs.rhs_id = 'null';
 			subs.rhs = node.right.source();
+		}
+
+
+		if (op != '=') {
+			// Compound assignment operations |a @= b| are evaluated
+			// as |a` = (a` @ b)| where a` is the reference obtained
+			// by the evaluation of a.
+			//
+			// See ECMA5.1 #11.3.2
+			subs.tmp0 = this.genUniqueName();
+			subs.tmp1 = this.genUniqueName();
+			subs.tmp2 = this.genUniqueName();
+			subs.tmp3 = this.genUniqueName();
+			subs.op = op[0];
+			node.update(this.wrap(sprintf(
+				'%(prefix)s' + 
+				'var %(tmp0)s = %(lhs)s, ' +
+				'%(tmp1)s = %(rhs)s, ' +
+				'%(tmp2)s = %(tmp0)s %(op)s %(tmp1)s; ' +
+				'%(tmp3)s = %(runtime_name)s.chkArith(%(tmp2)s, %(tmp0)s, %(tmp1)s, ' +
+					'\'%(op)s\', \'%(loc)s\');' +
+				'return %(lhs)s = %(runtime_name)s.assign(%(tmp3)s, ' +
+					'%(lhs_scope_id)s, %(lhs_id)s, %(rhs_scope_id)s, %(rhs_id)s);',
+				subs)));
+			return;
 		}
 
 		node.update(this.wrap(sprintf(
