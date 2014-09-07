@@ -122,28 +122,72 @@ var Context = function(options) {
 	/////////////////////////////
 	this.instrumentAssignmentExpression = function(node, file_name) {
 		var op = node.operator;
+
+		var subs = {
+			lhs : node.left.source(),
+			rhs : node.right.source(),
+			runtime_name : runtime_name,
+			loc : file_name + ':' + node.loc.start.line,
+			prefix : '',
+		};
+
 		if (op != '=') {
 			// Compound assignment operations |a @= b| are evaluated
-			// as |a = (a @ b)|. Because |a| is a Reference (resolved
-			// name binding), it is safe to evaluate twice, once
-			// to read and a second time to write a value. This works
-			// even for properties.
+			// as |a` = (a` @ b)| where a` is the evaluation of a.
 			//
 			// See ECMA5.1 #11.3.2
-
-			var subs = {
-				lhs : node.left.source(),
-				runtime_name : runtime_name,
-				loc : file_name + ':' + node.loc.start.line
-			};
-
-			this.instrumentBinaryExpression(node, file_name);
-
-			subs.source = node.source();
-			node.update(sprintf(
-				'%(lhs)s = %(source)s',
-				subs));
+			//this.instrumentBinaryExpression(node, file_name);
+			//subs.rhs = node.source();
+			return;
 		}
+
+		if (node.left.type === 'MemberExpression') {
+			subs.split_func = this.splitMemberExpression(node.left);
+			subs.lhs_tmp0 = this.genUniqueName();
+
+			subs.prefix += sprintf('var %(lhs_tmp0)s = %(split_func)s;', subs);
+			subs.lhs_scope_id = sprintf('%(lhs_tmp0)s[0]', subs);
+			subs.lhs_id = sprintf('%(lhs_tmp0)s[1]', subs);
+			subs.lhs = sprintf('%(lhs_tmp0)s[0][%(lhs_tmp0)s[1]]', subs);
+		}
+		else if (node.left.type === 'Identifier') {
+			subs.lhs_scope_id = 'null';
+			subs.lhs_id = '"' + node.left.name + '"';
+			subs.lhs = node.left.name;
+		}
+		else {
+			// Computed expression - need more to trace it.
+			subs.lhs_scope_id = 'null';
+			subs.lhs_id = 'null';
+			subs.lhs = node.left.source();
+		}
+
+		if (node.right.type === 'MemberExpression') {
+			subs.split_func = this.splitMemberExpression(node.right);
+			subs.rhs_tmp0 = this.genUniqueName();
+
+			subs.prefix += sprintf('var %(rhs_tmp0)s = %(split_func)s;', subs);
+			subs.rhs_scope_id = sprintf('%(rhs_tmp0)s[0]', subs);
+			subs.rhs_id = sprintf('%(rhs_tmp0)s[1]', subs);
+			subs.rhs = sprintf('%(rhs_tmp0)s[0][%(rhs_tmp0)s[1]]', subs);
+		}
+		else if (node.right.type === 'Identifier') {
+			subs.rhs_scope_id = 'null';
+			subs.rhs_id = '"' + node.right.name + '"';
+			subs.rhs = node.right.name;
+		}
+		else {
+			// Computed expression - need more to trace it.
+			subs.rhs_scope_id = 'null';
+			subs.rhs_id = 'null';
+			subs.rhs = node.right.source();
+		}
+
+		node.update(this.wrap(sprintf(
+			'%(prefix)s' + 
+			'return %(lhs)s = %(runtime_name)s.assign(%(rhs)s, ' +
+				'%(lhs_scope_id)s, %(lhs_id)s, %(rhs_scope_id)s, %(rhs_id)s);',
+			subs)));
 	};
 
 
@@ -224,26 +268,35 @@ var Context = function(options) {
 			subs)));
 		}
 		else if (callee.type == 'MemberExpression') {		
-			var property = callee.property.source();
-			if (callee.computed) {
-				subs.property_access = '[' + property + ']';
-			}
-			else {
-				subs.property_access = '.' + property;
-			}
-	
-			subs.func_this = callee.object.source();
+			subs.split_func = this.splitMemberExpression(callee);			
 
 			node.update(self.wrap(sprintf(
-				'var %(tmp0)s = %(func_this)s, ' +
-				'    %(tmp1)s = %(tmp0)s%(property_access)s, ' +
+				'var %(tmp0)s = %(split_func)s, ' +
 				'    %(tmp2)s = %(original_callee)s; ' +
-				'return %(runtime_name)s.chkCall(%(tmp1)s, %(tmp0)s, %(args)s, %(tmp2)s, \'%(loc)s\');',
+				'return %(runtime_name)s.chkCall(%(tmp0)s[0][%(tmp0)s[1]], %(tmp0)s[0], %(args)s, %(tmp2)s, \'%(loc)s\');',
 			subs)));
 		}
 		else {
 			console.error('Callee.type not supported: ' + callee.type + '; skipping');
 		}
+	};
+
+
+	/////////////////////////////
+	this.splitMemberExpression = function(node) {
+		var property = node.property.source();
+		var subs = {};
+
+		// Evaluate every MemberExpression using [""] notation.
+		if (node.computed) {
+			subs.property_access = property;
+		}
+		else {
+			subs.property_access = '"' + property + '"';
+		}
+
+		subs.func_this = node.object.source();
+		return sprintf('[%(func_this)s, %(property_access)s]',subs);
 	};
 
 	

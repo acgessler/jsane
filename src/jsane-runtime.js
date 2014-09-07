@@ -283,5 +283,9 @@ exports.chkCall = function(func, func_this, args, func_expr, where) {
 	return func.apply(func_this, args);
 };
 
+exports.assign = function(rhs, lhs_scope_id, lhs_name, rhs_scope_id, rhs_name) {
+	return rhs;
+};
+
 // Boilerplate to enable use in the browser outside node.js
 })(typeof exports === 'undefined' ? this['__rt'] = {} : exports);
