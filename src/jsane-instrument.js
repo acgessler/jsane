@@ -69,6 +69,28 @@ var Context = function(options) {
 
 		var ignored_lines = this.findIgnoredLines(text);
 		var instrumented_text = falafel(text, falafel_opts, function(node) {
+			// Add explicit semicolon after statements - implicit breaks can
+			// change behaviour with the current anonymous function-based
+			// style of instrumenting the code.
+			//
+			//    var f = function() {}
+			//    a = 2;
+			//
+			// potentially becomes
+			//
+			//    var f = function() {}
+			//    (function() { .. a = 2 .. }())
+			//
+			// which accidentally invokes the first function.
+			//
+			// This *must* be done even for blocks that turn off
+			// instrumentation.
+			if (node.type === 'VariableDeclaration' || node.type === 'ExpressionStatement') {
+				var source = node.source();
+				if (!/;\s*$/.test(source)) {
+					node.update(node.source() + ';');
+				}
+			}
 
 			// Skip all nodes that touch ignored lines
 			// AST line numbers are one-based
@@ -81,15 +103,16 @@ var Context = function(options) {
 				}
 			}
 
-			if (node.type == 'BinaryExpression') {
+			if (node.type === 'BinaryExpression') {
 				self.instrumentBinaryExpression(node, file_name, text);
 			}
-			else if (node.type == 'CallExpression') {
+			else if (node.type === 'CallExpression') {
 				self.instrumentFunctionCall(node, file_name, text);
 			}
-			else if (node.type == 'AssignmentExpression') {
+			else if (node.type === 'AssignmentExpression') {
 				self.instrumentAssignmentExpression(node, file_name, text);
 			}
+			
 		});
 
 		console.log(instrumented_text);

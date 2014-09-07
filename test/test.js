@@ -149,6 +149,10 @@ describe('esnull', function() {
    			it('should evaluate each expression exactly once', function() {
    				runTestcase(1002);
    			});
+
+   			it('should work with implicit and explicit semicolons', function() {
+   				runTestcase(1003);
+   			});
    		});
 
    		describe('check', function() {
