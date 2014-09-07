@@ -145,6 +145,12 @@ describe('esnull', function() {
    			
    		});
 
+   		describe('correctness', function() {
+   			it('should evaluate each expression exactly once', function() {
+   				runTestcase(1002);
+   			});
+   		});
+
    		describe('check', function() {
    			it('W0: should warn if JS arithmetic propagates a bad operand', function() {
    				runTestcase(0);

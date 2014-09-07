@@ -193,7 +193,7 @@ var Context = function(options) {
 				'%(tmp3)s = %(runtime_name)s.chkArith(%(tmp2)s, %(tmp0)s, %(tmp1)s, ' +
 					'\'%(op)s\', \'%(loc)s\');' +
 				'return %(lhs)s = %(runtime_name)s.assign(%(tmp3)s, ' +
-					'%(lhs_scope_id)s, %(lhs_id)s, %(rhs_scope_id)s, %(rhs_id)s);',
+					'%(lhs_scope_id)s, %(lhs_id)s, %(rhs_scope_id)s, %(rhs_id)s, \'%(loc)s\');',
 				subs)));
 			return;
 		}
@@ -201,7 +201,7 @@ var Context = function(options) {
 		node.update(this.wrap(sprintf(
 			'%(prefix)s' + 
 			'return %(lhs)s = %(runtime_name)s.assign(%(rhs)s, ' +
-				'%(lhs_scope_id)s, %(lhs_id)s, %(rhs_scope_id)s, %(rhs_id)s);',
+				'%(lhs_scope_id)s, %(lhs_id)s, %(rhs_scope_id)s, %(rhs_id)s, \'%(loc)s\');',
 			subs)));
 	};
 
