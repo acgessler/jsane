@@ -112,7 +112,9 @@ var Context = function(options) {
 			else if (node.type === 'AssignmentExpression') {
 				self.instrumentAssignmentExpression(node, file_name, text);
 			}
-			
+			else if (node.type === 'FunctionExpression' || node.type === 'FunctionDeclaration') {
+				self.instrumentFunction(node, file_name, text);
+			}
 		});
 
 		console.log(instrumented_text);
@@ -139,6 +141,29 @@ var Context = function(options) {
 			return runtime_embedding + instrumented_text;
 		}
 		self.error("|options.runtime_linkage| must be one of the RUNTIME_XXX constants");
+	};
+
+
+	/////////////////////////////
+	this.instrumentFunction = function(node, file_name) {
+		// node.body.source() includes the curly braces,
+		// node.body.body is the raw list of statement
+		// nodes in the body of the function.
+		var body_without_braces = _.map(node.body.body, 
+			function(stmt) {return stmt.source();}
+		).join(';');
+		var subs = {
+			runtime_name : runtime_name,
+			body : body_without_braces,
+			uses_arg_array_js : false, // TODO
+			arg_names_js : '[]', // TODO
+		};
+
+		node.body.update(sprintf(
+			'{ %(runtime_name)s.enterFunc(%(arg_names_js)s, %(uses_arg_array_js)s); ' +
+			'%(body)s;' +
+			'%(runtime_name)s.leaveFunc(); }',
+			subs));
 	};
 
 

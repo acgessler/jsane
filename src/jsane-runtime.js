@@ -154,6 +154,11 @@ var check = function(idx, format_arguments) {
 	}
 };
 
+
+var trace_stack = [];
+var trace_stack_top = {};
+
+
 // Classes of special types that need to be distinguished
 var isNil = function(a) {
 	return a === null ||
@@ -280,7 +285,11 @@ exports.chkCall = function(func, func_this, args, func_expr, where) {
 		check(2, arguments);
 	}
 
-	return func.apply(func_this, args);
+	var result = func.apply(func_this, args);
+
+	// 
+
+	return result;
 };
 
 /**  Trace assignment from RHS to LHS.
@@ -293,14 +302,39 @@ exports.chkCall = function(func, func_this, args, func_expr, where) {
 	   null, String
 	   Assignment to/from local variable
 
-	   Number, String
-	   Assignment to function argument #n
+	   null, Number
+	   Assignment to argument #n of a function being called
  
      Assign works with function call instrumentation to handle
      local variables / function parameters correctly.
  */
 exports.assign = function(rhs, lhs_scope_id, lhs_id, rhs_scope_id, rhs_id) {
+	// TODO
 	return rhs;
+};
+
+/** Enter an instrumented function.
+    
+    |argument_names| is an array containing the names of all
+    named arguments that the function takes.
+
+    |uses_args_array| specifies whether the function contains
+    any (statically determined) use of the |arguments| object.
+ */
+exports.enterFunc = function(argument_names, uses_args_array) {
+	// TODO: determine if caller is instrumented, if so,
+	// extract argument traces from |trace_stack_top|.
+	var scope = {};
+	trace_stack.push(scope);
+	trace_stack_top = scope;
+	return scope;
+};
+
+/** Leave an instrumented function */
+exports.leaveFunc = function() {
+	trace_stack.pop();
+	// This may be |undefined| if the stack is empty
+	trace_stack_top = trace_stack[trace_stack.length];
 };
 
 // Boilerplate to enable use in the browser outside node.js
