@@ -283,7 +283,23 @@ exports.chkCall = function(func, func_this, args, func_expr, where) {
 	return func.apply(func_this, args);
 };
 
-exports.assign = function(rhs, lhs_scope_id, lhs_name, rhs_scope_id, rhs_name) {
+/**  Trace assignment from RHS to LHS.
+     Source and destination are identified by a (scope_id, id)
+     tuple which must be one of the following combos:
+
+       Object, String
+       Assignment to object property
+
+	   null, String
+	   Assignment to/from local variable
+
+	   Number, String
+	   Assignment to function argument #n
+ 
+     Assign works with function call instrumentation to handle
+     local variables / function parameters correctly.
+ */
+exports.assign = function(rhs, lhs_scope_id, lhs_id, rhs_scope_id, rhs_id) {
 	return rhs;
 };
 

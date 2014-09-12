@@ -154,48 +154,8 @@ var Context = function(options) {
 			prefix : '',
 		};
 
-		if (node.left.type === 'MemberExpression') {
-			subs.split_func = this.splitMemberExpression(node.left);
-			subs.lhs_tmp0 = this.genUniqueName();
-
-			subs.prefix += sprintf('var %(lhs_tmp0)s = %(split_func)s;', subs);
-			subs.lhs_scope_id = sprintf('%(lhs_tmp0)s[0]', subs);
-			subs.lhs_id = sprintf('%(lhs_tmp0)s[1]', subs);
-			subs.lhs = sprintf('%(lhs_tmp0)s[0][%(lhs_tmp0)s[1]]', subs);
-		}
-		else if (node.left.type === 'Identifier') {
-			subs.lhs_scope_id = 'null';
-			subs.lhs_id = '"' + node.left.name + '"';
-			subs.lhs = node.left.name;
-		}
-		else {
-			// Computed expression - need more to trace it.
-			subs.lhs_scope_id = 'null';
-			subs.lhs_id = 'null';
-			subs.lhs = node.left.source();
-		}
-
-		if (node.right.type === 'MemberExpression') {
-			subs.split_func = this.splitMemberExpression(node.right);
-			subs.rhs_tmp0 = this.genUniqueName();
-
-			subs.prefix += sprintf('var %(rhs_tmp0)s = %(split_func)s;', subs);
-			subs.rhs_scope_id = sprintf('%(rhs_tmp0)s[0]', subs);
-			subs.rhs_id = sprintf('%(rhs_tmp0)s[1]', subs);
-			subs.rhs = sprintf('%(rhs_tmp0)s[0][%(rhs_tmp0)s[1]]', subs);
-		}
-		else if (node.right.type === 'Identifier') {
-			subs.rhs_scope_id = 'null';
-			subs.rhs_id = '"' + node.right.name + '"';
-			subs.rhs = node.right.name;
-		}
-		else {
-			// Computed expression - need more to trace it.
-			subs.rhs_scope_id = 'null';
-			subs.rhs_id = 'null';
-			subs.rhs = node.right.source();
-		}
-
+		this.populateExpressionTraceStubs(node.left, subs, 'lhs_');
+		this.populateExpressionTraceStubs(node.right, subs, 'rhs_');
 
 		if (op != '=') {
 			// Compound assignment operations |a @= b| are evaluated
@@ -209,21 +169,21 @@ var Context = function(options) {
 			subs.tmp3 = this.genUniqueName();
 			subs.op = op[0];
 			node.update(this.wrap(sprintf(
-				'%(prefix)s' + 
-				'var %(tmp0)s = %(lhs)s, ' +
-				'%(tmp1)s = %(rhs)s, ' +
+				'%(preamble)s' + 
+				'var %(tmp0)s = %(lhs_val)s, ' +
+				'%(tmp1)s = %(rhs_val)s, ' +
 				'%(tmp2)s = %(tmp0)s %(op)s %(tmp1)s; ' +
 				'%(tmp3)s = %(runtime_name)s.chkArith(%(tmp2)s, %(tmp0)s, %(tmp1)s, ' +
 					'\'%(op)s\', \'%(loc)s\');' +
-				'return %(lhs)s = %(runtime_name)s.assign(%(tmp3)s, ' +
+				'return %(lhs_val)s = %(runtime_name)s.assign(%(tmp3)s, ' +
 					'%(lhs_scope_id)s, %(lhs_id)s, %(rhs_scope_id)s, %(rhs_id)s, \'%(loc)s\');',
 				subs)));
 			return;
 		}
 
 		node.update(this.wrap(sprintf(
-			'%(prefix)s' + 
-			'return %(lhs)s = %(runtime_name)s.assign(%(rhs)s, ' +
+			'%(preamble)s' + 
+			'return %(lhs_val)s = %(runtime_name)s.assign(%(rhs_val)s, ' +
 				'%(lhs_scope_id)s, %(lhs_id)s, %(rhs_scope_id)s, %(rhs_id)s, \'%(loc)s\');',
 			subs)));
 	};
@@ -261,10 +221,22 @@ var Context = function(options) {
 	/////////////////////////////
 	this.instrumentFunctionCall = function(node, file_name, original_text) {
 		// Callee.type can be at least: "Identifier", "MemberExpression", ?
-		var callee = node.callee;
+		var	callee = node.callee,
+			self = this;
 
-		var js_args_array = '[' + _.map(node.arguments, function(arg) {
-			return arg.source();
+		// For each argument, generate asignment trace
+		var js_args_array = '[' + _.map(node.arguments, function(arg, index) {
+			var arg_subs = {
+				index : index,
+				runtime_name : runtime_name,
+				loc : file_name + ':' + arg.loc.start.line
+			};
+			self.populateExpressionTraceStubs(arg, arg_subs, 'arg_');
+			return self.wrap(sprintf(
+				'%(preamble)s' + 
+				'return %(runtime_name)s.assign(%(arg_val)s, ' +
+					'null, %(index)s, %(arg_scope_id)s, %(arg_id)s, \'%(loc)s\');',
+					arg_subs));
 		}).join(',') + ']';
 
 		var subs = {
@@ -321,6 +293,50 @@ var Context = function(options) {
 
 
 	/////////////////////////////
+	// Populate |subs| with code stubs to compute parameters necessary
+	// for using runtime.assign() to trace data moves from or to
+	// |node|. All keys produced are prefixed by |prefix|:
+	//
+	//   KEY            VALUE
+	//   scope_id       Scope/object identifier
+	//   id             Property/slot identifier
+	//                  (scope_id, id) together forms the unique key
+	//                   that JSane uses to generate data traces)
+	//
+	//   val            |node| evaluated
+	//   preamble       (Appended to) Preamble code to put before any
+	//                  use of the previous snippets.
+	//
+	this.populateExpressionTraceStubs = function(node, subs, prefix) {
+		if (typeof subs.preamble === 'undefined') {
+			subs.preamble = '';
+		}
+		if (node.type === 'MemberExpression') {
+			var subs_private = {
+				split_func : this.splitMemberExpression(node),
+				tmp0 : this.genUniqueName()
+			};
+			
+			subs.preamble += sprintf('var %(tmp0)s = %(split_func)s;', subs_private);
+			subs[prefix + 'scope_id'] = sprintf('%(tmp0)s[0]', subs_private);
+			subs[prefix + 'id'] = sprintf('%(tmp0)s[1]', subs_private);
+			subs[prefix + 'val'] = sprintf('%(tmp0)s[0][%(tmp0)s[1]]', subs_private);
+		}
+		else if (node.type === 'Identifier') {
+			subs[prefix + 'scope_id'] = 'null';
+			subs[prefix + 'id'] = '"' + node.name + '"';
+			subs[prefix + 'val'] = node.name;
+		}
+		else {
+			// Computed expression - need more to trace it.
+			subs[prefix + 'scope_id'] = 'null';
+			subs[prefix + 'id'] = 'null';
+			subs[prefix + 'val'] = node.source();
+		}
+	}
+
+
+	/////////////////////////////
 	this.splitMemberExpression = function(node) {
 		var property = node.property.source();
 		var subs = {};
@@ -353,9 +369,9 @@ var Context = function(options) {
 
 
 	/////////////////////////////
+	// Get a real, unique name w.r.t to the current scope.
+	// For now, a random id.
 	this.genUniqueName = function() {
-		// Get a real, unique name w.r.t to the current scope.
-		// For now, a random id.
 		return format('tmp_%d', Math.floor(Math.random() * 1000000000));
 	};
 

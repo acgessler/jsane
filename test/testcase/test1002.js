@@ -74,3 +74,15 @@ obj.c = obj.b = obj.a;
 
 expect(obj.b).to.equal(16);
 expect(obj.c).to.equal(16);
+
+
+// JSane: on
+// --------------------
+
+foo(foo(), foo(), baz( baz( 2 + baz() ) ));
+
+// --------------------
+// JSane: off
+
+expect(foo_count).to.equal(10);
+expect(baz_count).to.equal(7);
