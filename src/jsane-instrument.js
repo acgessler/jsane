@@ -177,7 +177,6 @@ var Context = function(options) {
 		var subs = {
 			runtime_name : runtime_name,
 			body : body_without_braces,
-			uses_arg_array_js : false, // TODO find argument usages
 			arg_names_js : arg_names_js, 
 			prefix_string : prefix_string
 		};
@@ -185,7 +184,7 @@ var Context = function(options) {
 		node.body.update(sprintf(
 			'{' +
 				'%(prefix_string)s ' +
-				'%(runtime_name)s.enterFunc(%(arg_names_js)s, %(uses_arg_array_js)s); ' +
+				'%(runtime_name)s.enterFunc(%(arg_names_js)s); ' +
 				'%(body)s;' +
 				'%(runtime_name)s.leaveFunc();' +
 			'}',

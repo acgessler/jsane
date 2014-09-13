@@ -15,7 +15,8 @@ external dependencies unless absolutely necessary.
 (function(exports, undefined){
 "use strict";
 
-//// IMPLEMENTATION ///////////////////////////////////////////////////////
+
+//// OUTPUT/LOG ///////////////////////////////////////////////////////////
 
 /////////////////////
 // Verbosity/severity level. Each check has a configurable
@@ -96,15 +97,14 @@ var checks_cfg = [
 		"Expression: '{1} {3} {2} => {0}'",
 		CAT_BUG_EARLIER
 	],
-];
 
-// Poor-man's format. Substitute {i} with args[i]
-var format = function(spec, args) {
-	for (var i = 0; i < args.length; ++i) {
-		spec = spec.replace('{' + i + '}', args[i]);
-	}
-	return spec;
-};
+	// 6
+	[LV_WRN, 
+		"Function called with too many arguments",
+		"Expected {0} arguments but received {1}. Function: {2}",
+		CAT_BUG_SOURCE
+	],
+];
 
 // Prefix for all messages produced by JSane
 var message_prefix = "Jsane ";
@@ -154,12 +154,100 @@ var check = function(idx, format_arguments) {
 	}
 };
 
+//// TRACING //////////////////////////////////////////////////////////////
 
 var trace_stack = [];
 var trace_stack_top = {};
 
+var shouldTrace = function(a) {
+	return !isFiniteNumber(a) && !isObject(a);
+};
 
-// Classes of special types that need to be distinguished
+// Get an unique ID that remains associated with an object
+// for its entire lifetime.
+var getObjectTraceId = (function() {
+	var trace_id_source = 0;
+	// Objects store their trace ID in this property,
+	// which is marked as non-enumerable.
+	var trace_id_prop_name = '___jsane_trace_id';
+
+	// Update Object prototype to hide the trace property
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Enumerability_and_ownership_of_properties
+
+	// Changes are required for:
+	//  - 'in'. Instrumentation replaces the operator by a
+	//     call to |exports.chkIn|, which acts as a proxy.
+	//     TODO
+	//  - Object.hasOwnProperty()
+
+	var old_hasOwnProperty = Object.prototype.hasOwnProperty;
+	Object.prototype.hasOwnProperty = function(name) {
+		if (name === trace_id_prop_name) {
+			return false;
+		}
+
+		return old_hasOwnProperty.call(this, name);
+	} ;
+
+	var old_getOwnPropertyNames = Object.prototype.getOwnPropertyNames;
+	Object.prototype.getOwnPropertyNames = function() {
+		var names = old_getOwnPropertyNames.call(this);
+		var idx = names.indexOf(trace_id_prop_name);
+		return idx === -1 ? names : names.splice(idx, 1);
+	} ;
+
+	// Since the trace property is non-enumerable, no change is
+	// required for:
+	//
+	//  - 'for .. in' loops (which would otherwise require special
+	//        patch code to skip the property.)
+	//  - Object.keys()
+	//  - Object.hasEnumerableProperty()	
+
+	return function(obj) {
+		// Do nothing if the input is already a numeric trace ID
+		if (isNumber(obj)) {
+			return obj;
+		}
+		var trace_id = obj[trace_id_prop_name];
+		// Create and assign a new trace ID to the object if either
+		//   i)  The corresponding property does not exist
+		//   ii) The property is inherited from the prototype chain.
+		//       This happens if users make manual assignments to
+		//       prototypes. This causes prototype objects to be
+		//       assigned trace IDs. Since Object.hasOwnProperty()
+		//       is patched and pretends the property holding the
+		//       trace ID does not exist, the original function
+		//       is used to detect this case.
+		if (typeof trace_id === 'undefined' || !old_hasOwnProperty.call(obj, trace_id_prop_name)) {
+			var trace_id = trace_id_source++;
+			// 
+			Object.defineProperty(obj, trace_id_prop_name, {
+				value: trace_id,
+				// Make non-enumerable
+				enumerable: false,
+
+				// The property is exclusively managed by this code
+				// and neither written nor configured again.
+				configurable: false,
+				writable: false
+			});
+		}
+		return trace_id;
+	};
+})();
+
+var traceLocal = function(a) {
+	// TODO
+};
+
+var traceGlobal = function(a) {
+	// TODO
+};
+
+//// UTIL /////////////////////////////////////////////////////////////////
+
+// Several classes of special types to distinguish
 var isNil = function(a) {
 	return a === null ||
 		typeof a == 'undefined';
@@ -194,6 +282,13 @@ var hasBadStringConversion = function(a) {
 	return a.toString === Object.prototype.toString;
 };
 
+// Poor-man's format. Substitutes {i} with args[i]
+var format = function(spec, args) {
+	for (var i = 0; i < args.length; ++i) {
+		spec = spec.replace('{' + i + '}', args[i]);
+	}
+	return spec;
+};
 
 //// EXPORTS //////////////////////////////////////////////////////////////
 
@@ -210,7 +305,7 @@ exports.setPrintFunc = function(f) {
 
 /** Checks on |a| |op| |b| having resulted in |value| */
 exports.chkArith = function(value, a, b, op, where) {
-	if (op == '+') {
+	if (op === '+') {
 		// See ECMA5.1 #11.6.1
 		// If one of the operands is a string after applying the
 		// ToPrimitive() abstract operation, string concatenation
@@ -285,10 +380,32 @@ exports.chkCall = function(func, func_this, args, func_expr, where) {
 		check(2, arguments);
 	}
 
+	// W6: Function called with too many arguments
+	if (args.length > func.length) {
+		// Check if the JS |arguments| array is potentially used
+		// anywhere in the called function's source code, if so
+		// do not emit the warning.
+		// 
+		// This is a hacky heuristic:
+		// If found, the arguments array could refer to another,
+		// local function's arguments (false negative).
+		//
+		// Furthermore, eval() is another way of accessing the
+		// |arguments| array (false positive).
+		//
+		var func_source_code = func.toString();
+		if (!/\barguments\b/.test(func_source_code) &&
+			!/\beval\b/.test(func_source_code)) {
+
+			check(6, [func.length, args.length, func_source_code.length > 200
+				? func_source_code.substring(0, 200)
+				: func_source_code]);
+		}
+	}
+
 	var result = func.apply(func_this, args);
 
 	// 
-
 	return result;
 };
 
@@ -296,20 +413,45 @@ exports.chkCall = function(func, func_this, args, func_expr, where) {
      Source and destination are identified by a (scope_id, id)
      tuple which must be one of the following combos:
 
-       Object, String
-       Assignment to object property
+    i)   Object, String
+         Assignment to object property
 
-	   null, String
-	   Assignment to/from local variable
+	ii)  null, String
+	     Assignment to/from local variable
 
-	   null, Number
-	   Assignment to argument #n of a function being called
+	iii) null, Number
+	     Assignment to argument #n of a function being called
  
-     Assign works with function call instrumentation to handle
-     local variables / function parameters correctly.
+     Assign is tied closely with function call instrumentation to
+     handle data traces across function invocations correctly.
  */
 exports.assign = function(rhs, lhs_scope_id, lhs_id, rhs_scope_id, rhs_id) {
-	// TODO
+	// Record trace if either
+	//	i)  the value of the RHS qualifies
+	//	ii) the LHS is a function argument (needed by the function
+	//      begin/end instrumentation to determine which arguments
+	//      got omitted and which ones did not)
+	//
+	// Record trace to
+	//  i)  global if LHS is an object
+	//  ii) local if LHS is a local variable or a called function's arg
+	if (shouldTrace(rhs) || (lhs_scope_id === null && isNumber(lhs_id))) {
+		if (rhs_scope_id !== null && !isString(rhs_scope_id)) {
+			rhs_scope_id = getObjectTraceId(rhs_scope_id);
+		}
+		if (lhs_scope_id !== null && !isString(lhs_scope_id)) {
+			lhs_scope_id = getObjectTraceId(lhs_scope_id);
+		}
+
+		var trace_rhs = [rhs, rhs_scope_id, rhs_id];
+
+		if (lhs_scope_id === null) {
+			traceLocal(lhs_id, trace_rhs);
+		}
+		else {
+			traceGlobal(lhs_scope_id, lhs_id, trace_rhs);
+		}
+	}
 	return rhs;
 };
 
@@ -317,13 +459,24 @@ exports.assign = function(rhs, lhs_scope_id, lhs_id, rhs_scope_id, rhs_id) {
     
     |argument_names| is an array containing the names of all
     named arguments that the function takes.
-
-    |uses_args_array| specifies whether the function contains
-    any (statically determined) use of the |arguments| object.
  */
-exports.enterFunc = function(argument_names, uses_args_array) {
-	// TODO: determine if caller is instrumented, if so,
-	// extract argument traces from |trace_stack_top|.
+exports.enterFunc = function(argument_names) {
+	// TODO: determine if caller is instrumented first.
+
+	// Steps to ensure correct tracing for arguments:
+	//  - Look at trace entries for arguments (in the
+	//    local trace of the calling function).
+	//  - Identify arguments in the current function
+	//    that were omitted or were passed a value
+	//    that qualifies for tracing. This requires
+	//    that the call site emits trace info for all
+	//    (not just the null/undefined etc) arguments.
+	//    [The |arguments| array can not be used instead as
+	//    it would interfere with W6/chkCall.]
+	//  - Generate trace entries for all such arguments,
+	//    thus connecting the local argument variable
+	//    to the argument value at the call site.
+	// TODO
 	var scope = {};
 	trace_stack.push(scope);
 	trace_stack_top = scope;
@@ -333,7 +486,7 @@ exports.enterFunc = function(argument_names, uses_args_array) {
 /** Leave an instrumented function */
 exports.leaveFunc = function() {
 	trace_stack.pop();
-	// This may be |undefined| if the stack is empty
+	// This may become |undefined| if the stack is empty
 	trace_stack_top = trace_stack[trace_stack.length];
 };
 
