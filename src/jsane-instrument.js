@@ -167,11 +167,18 @@ var Context = function(options) {
 				return stmt.source();
 			}
 		).join(';');
+
+		var arg_names_js = '[' + _.map(node.params,
+			function(param) {
+				return '\'' + param.name + '\'';
+			}
+		).join(',') + ']';
+
 		var subs = {
 			runtime_name : runtime_name,
 			body : body_without_braces,
-			uses_arg_array_js : false, // TODO
-			arg_names_js : '[]', // TODO
+			uses_arg_array_js : false, // TODO find argument usages
+			arg_names_js : arg_names_js, 
 			prefix_string : prefix_string
 		};
 
@@ -314,7 +321,7 @@ var Context = function(options) {
 		//     an arbitrary function), it can have side-effects and
 		//     should be evaluated exactly once, which complicates
 		//     things.
-		if (callee.type == 'Identifier') {
+		if (callee.type == 'Identifier' || callee.type == 'FunctionExpression') {
 			node.update(self.wrap(sprintf(
 				'var %(tmp0)s = %(callee)s, ' +
 				'%(tmp1)s = %(original_callee)s; ' +

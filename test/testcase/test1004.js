@@ -1,7 +1,7 @@
 // Test to verify that instrumentation leaves
 // "use strict" and "asm" annotations intact.
 
-function f_strict() {
+function f_strict(foo, bar, baz) {
 	"use strict";
 	var f = this;
 	return f;
