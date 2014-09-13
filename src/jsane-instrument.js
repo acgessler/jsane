@@ -149,20 +149,39 @@ var Context = function(options) {
 		// node.body.source() includes the curly braces,
 		// node.body.body is the raw list of statement
 		// nodes in the body of the function.
+		//
+		// Strict mode/asm.js directives must be preserved
+		// as first statement in the function body.
+		var prefix_string = '';
 		var body_without_braces = _.map(node.body.body, 
-			function(stmt) {return stmt.source();}
+			function(stmt, index) {
+				if (index === 0) {
+					if (stmt.type === 'ExpressionStatement' && stmt.expression.type === 'Literal') {
+						var value = stmt.expression.value; 
+						if (value === 'use strict' || value === 'use asm') {
+							prefix_string = '\'' + value + '\';';
+							return '';
+						}
+					}
+				}
+				return stmt.source();
+			}
 		).join(';');
 		var subs = {
 			runtime_name : runtime_name,
 			body : body_without_braces,
 			uses_arg_array_js : false, // TODO
 			arg_names_js : '[]', // TODO
+			prefix_string : prefix_string
 		};
 
 		node.body.update(sprintf(
-			'{ %(runtime_name)s.enterFunc(%(arg_names_js)s, %(uses_arg_array_js)s); ' +
-			'%(body)s;' +
-			'%(runtime_name)s.leaveFunc(); }',
+			'{' +
+				'%(prefix_string)s ' +
+				'%(runtime_name)s.enterFunc(%(arg_names_js)s, %(uses_arg_array_js)s); ' +
+				'%(body)s;' +
+				'%(runtime_name)s.leaveFunc();' +
+			'}',
 			subs));
 	};
 

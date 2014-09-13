@@ -153,6 +153,10 @@ describe('esnull', function() {
    			it('should work with implicit and explicit semicolons', function() {
    				runTestcase(1003);
    			});
+
+   			it('should preserve strict mode / asm.js annotations', function() {
+   				runTestcase(1004);
+   			});
    		});
 
    		describe('check', function() {
