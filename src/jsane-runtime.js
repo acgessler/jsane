@@ -253,6 +253,10 @@ var isNil = function(a) {
 		typeof a == 'undefined';
 };
 
+var isUndefined = function(a) {
+	return typeof a == 'undefined';
+};
+
 var isBoolean = function(a) {
 	return typeof a == 'boolean';
 };
@@ -382,24 +386,31 @@ exports.chkCall = function(func, func_this, args, func_expr, where) {
 
 	// W6: Function called with too many arguments
 	if (args.length > func.length) {
-		// Check if the JS |arguments| array is potentially used
-		// anywhere in the called function's source code, if so
-		// do not emit the warning.
-		// 
-		// This is a hacky heuristic:
-		// If found, the arguments array could refer to another,
-		// local function's arguments (false negative).
-		//
-		// Furthermore, eval() is another way of accessing the
-		// |arguments| array (false positive).
-		//
-		var func_source_code = func.toString();
-		if (!/\barguments\b/.test(func_source_code) &&
-			!/\beval\b/.test(func_source_code)) {
+		for (var i = func.length; i < args.length; ++i) {
+			if (!isUndefined(args[i])) {
+				break;
+			}
+		}
+		if (i < args.length) {
+			// Check if the JS |arguments| array is potentially used
+			// anywhere in the called function's source code, if so
+			// do not emit the warning.
+			// 
+			// This is a hacky heuristic:
+			// If found, the arguments array could refer to another,
+			// local function's arguments (false negative).
+			//
+			// Furthermore, eval() is another way of accessing the
+			// |arguments| array (false positive).
+			//
+			var func_source_code = func.toString();
+			if (!/\barguments\b/.test(func_source_code) &&
+				!/\beval\b/.test(func_source_code)) {
 
-			check(6, [func.length, args.length, func_source_code.length > 200
-				? func_source_code.substring(0, 200)
-				: func_source_code]);
+				check(6, [func.length, args.length, func_source_code.length > 200
+					? func_source_code.substring(0, 200)
+					: func_source_code]);
+			}
 		}
 	}
 

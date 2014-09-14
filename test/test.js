@@ -183,6 +183,10 @@ describe('esnull', function() {
    			it('W5: should warn if strings participating in arithmetic are auto-parsed as numbers', function() {
    				runTestcase(5);
    			});
+
+   			it('W6: should warn if too many arguments are passed to a function', function() {
+   				runTestcase(6);
+   			});
    		});
 	});
 });
