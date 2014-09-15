@@ -156,16 +156,19 @@ var check = function(idx, format_arguments) {
 
 //// TRACING //////////////////////////////////////////////////////////////
 
-var trace_stack = [];
-var trace_stack_top = {};
-
+// Check if the value |a| qualifies for tracing.
+// Changing this to always return true would enable full data tracing
 var shouldTrace = function(a) {
 	return !isFiniteNumber(a) && !isObject(a);
 };
 
-// Get an unique ID that remains associated with an object
-// for its entire lifetime.
-var getObjectTraceId = (function() {
+// objectTraceUtil.getObjectTraceId(obj)
+//   Get an unique ID that remains associated with an object
+//   for its entire lifetime.
+//
+// objectTraceUtil.proxyInOperator(prop, obj)
+//   Proxy to call instead of |prop in obj| statements.
+var objectTraceUtil = (function() {
 	var trace_id_source = 0;
 	// Objects store their trace ID in this property,
 	// which is marked as non-enumerable.
@@ -176,7 +179,7 @@ var getObjectTraceId = (function() {
 
 	// Changes are required for:
 	//  - 'in'. Instrumentation replaces the operator by a
-	//     call to |exports.chkIn|, which acts as a proxy.
+	//     call to |proxyInOperator|
 	//     TODO
 	//  - Object.hasOwnProperty()
 
@@ -196,6 +199,13 @@ var getObjectTraceId = (function() {
 		return idx === -1 ? names : names.splice(idx, 1);
 	} ;
 
+	var proxyInOperator = function(name, obj) {
+		if (name === trace_id_prop_name) {
+			return false;
+		}
+		return name in obj;
+	};
+
 	// Since the trace property is non-enumerable, no change is
 	// required for:
 	//
@@ -204,7 +214,7 @@ var getObjectTraceId = (function() {
 	//  - Object.keys()
 	//  - Object.hasEnumerableProperty()	
 
-	return function(obj) {
+	var getObjectTraceId =  function(obj) {
 		// Do nothing if the input is already a numeric trace ID
 		if (isNumber(obj)) {
 			return obj;
@@ -235,15 +245,121 @@ var getObjectTraceId = (function() {
 		}
 		return trace_id;
 	};
+
+	return {
+		getObjectTraceId : getObjectTraceId,
+		proxyInOperator : proxyInOperator
+	}
 })();
 
-var traceLocal = function(a) {
-	// TODO
-};
 
-var traceGlobal = function(a) {
-	// TODO
-};
+// tracer.traceGlobal(lhs_scope_id, lhs_id, rhs, rhs_scope_id, rhs_id)
+// tracer.traceLocal(lhs_id, rhs, rhs_scope_id, rhs_id)
+var tracer = (function() {
+	var traces = {};
+
+	var local_trace_stack = [];
+	var local_trace_stack_top = null;
+
+	// Value side of a trace key-value pair in both local and global trace state
+	var TraceItem = function(rhs, rhs_scope_id, rhs_id) {
+		// TODO: use a more space-efficient representation,
+		// possibly truncate/sanitize |rhs| if it is an object
+		// and not a numeric/undefined/null/boolean value.
+		// Note that this would only happen if |shouldTrace|
+		// is changed accoringly.
+		this.rhs = rhs;
+		this.rhs_scope_id = rhs_scope_id;
+		this.rhs_id = rhs_id;
+	};
+
+	var traceGlobal = function(lhs_scope_id, lhs_id, rhs, rhs_scope_id, rhs_id) {
+		var trace_item = rhs instanceof TraceItem 
+			? rhs
+			: new TraceItem(rhs, rhs_scope_id, rhs_id);
+
+		traces[lhs_scope_id + "." + lhs_id] = trace_item;
+
+		if (rhs_scope_id === null) {
+			// The RHS of the assignment is a local value. To preserve trace
+			// history, this value and all the local values it was derived
+			// from are now promoted to the global trace state.
+			if (local_trace_stack_top) {
+				var local_id = rhs_id;
+				var history = [];
+				var stack_frame_cursor = local_trace_stack.length - 1;
+				while (stack_frame_cursor >= 0) {
+					var source = lookupLocalTrace(local_id, stack_frame_cursor);
+					if (isUndefined(source)) {
+						break;
+					}
+
+					history.push([local_id, source]);
+
+					// RHS of assignment is a global object? Great,
+					// trace history is complete then.
+					if (source.rhs_scope_id !== null) {
+						break;
+					}
+
+					// If the RHS of the assignment is numeric, it is
+					// an assignment to a function argument. This means
+					// search continues in the stack frame below.
+					if (isNumber(source.rhs_id)) {
+						--stack_frame_cursor;
+					}
+
+					local_id = source.rhs_id;
+				}
+
+				var last_global_source = history[history.length - 1][1];
+				for (var i = history.length - 1; i >= 0; --i) {
+					var local_id = history[i][0];
+					var rhs = history[i][1].rhs;
+
+					// Generate a (func_scope_id, local_id) -> last_global_source trace entry
+					var global_id = local_id;
+					var global_scope_id = source.rhs_scope_id;
+
+					trace_item = new TraceItem(rhs,
+						last_global_source.rhs_scope_id,
+						last_global_source.rhs_id);
+
+					traceGlobal(global_scope_id, global_id, trace_item);
+					last_global_source = trace_item;
+				}
+			}
+		}
+	};
+
+	var lookupLocalTrace = function(id, cursor) {
+		cursor = isUndefined(cursor) ? local_trace_stack.length - 1 : cursor;
+		return local_trace_stack[cursor][id];
+	};
+
+	var traceLocal = function(lhs_id, trace_rhs, rhs, rhs_scope_id, rhs_id) {
+		local_trace_stack_top[lhs_id] = new TraceItem(rhs, rhs_scope_id, rhs_id);
+	};
+
+	var pushLocalTraceScope = function() {
+		local_trace_stack_top = {};
+		local_trace_stack.push(local_trace_stack_top);
+		return local_trace_stack_top;
+	};
+
+	var popLocalTraceScope = function() {
+		local_trace_stack.pop();
+		// This may become |undefined| if the stack is empty
+		local_trace_stack_top = local_trace_stack[local_trace_stack.length];
+	};
+
+	return {
+		traceGlobal : traceGlobal,
+		traceLocal : traceLocal,
+		pushLocalTraceScope : pushLocalTraceScope,
+		popLocalTraceScope : popLocalTraceScope
+	};
+})();
 
 //// UTIL /////////////////////////////////////////////////////////////////
 
@@ -448,19 +564,17 @@ exports.assign = function(rhs, lhs_scope_id, lhs_id, rhs_scope_id, rhs_id) {
 	//  ii) local if LHS is a local variable or a called function's arg
 	if (shouldTrace(rhs) || (lhs_scope_id === null && isNumber(lhs_id))) {
 		if (rhs_scope_id !== null && !isString(rhs_scope_id)) {
-			rhs_scope_id = getObjectTraceId(rhs_scope_id);
+			rhs_scope_id = objectTraceUtil.getObjectTraceId(rhs_scope_id);
 		}
 		if (lhs_scope_id !== null && !isString(lhs_scope_id)) {
-			lhs_scope_id = getObjectTraceId(lhs_scope_id);
+			lhs_scope_id = objectTraceUtil.getObjectTraceId(lhs_scope_id);
 		}
-
-		var trace_rhs = [rhs, rhs_scope_id, rhs_id];
 
 		if (lhs_scope_id === null) {
-			traceLocal(lhs_id, trace_rhs);
+			tracer.traceLocal(lhs_id, rhs, rhs_scope_id, rhs_id);
 		}
 		else {
-			traceGlobal(lhs_scope_id, lhs_id, trace_rhs);
+			tracer.traceGlobal(lhs_scope_id, lhs_id, rhs, rhs_scope_id, rhs_id);
 		}
 	}
 	return rhs;
@@ -488,17 +602,12 @@ exports.enterFunc = function(argument_names) {
 	//    thus connecting the local argument variable
 	//    to the argument value at the call site.
 	// TODO
-	var scope = {};
-	trace_stack.push(scope);
-	trace_stack_top = scope;
-	return scope;
+	var scope = tracer.pushLocalTraceScope();
 };
 
 /** Leave an instrumented function */
 exports.leaveFunc = function() {
-	trace_stack.pop();
-	// This may become |undefined| if the stack is empty
-	trace_stack_top = trace_stack[trace_stack.length];
+	tracer.popLocalTraceScope();
 };
 
 // Boilerplate to enable use in the browser outside node.js
