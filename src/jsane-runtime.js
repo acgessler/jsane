@@ -160,12 +160,37 @@ var check = function(idx, format_arguments) {
 // sync with jsane-instrument.js/GLOBAL_OBJECT_TRACE_ID
 var GLOBAL_OBJECT_TRACE_ID = 1;
 
+// shouldTrace()
 // Check if the value |a| qualifies for tracing.
 // Changing this to always return true would enable full data tracing
 var shouldTrace = function(a) {
 	return !isFiniteNumber(a) && !isObject(a);
 };
 
+// allocateTraceId()
+// Allocate a a new tracing ID. Tracing IDs are unique and
+// stay alive forever. Tracing IDs are used in JSane to
+// uniquely identify assignments to or from
+//   - Objects (the global object uses the predefined
+//              GLOBAL_OBJECT_TRACE_ID tracing ID)
+//   - Function invocations. Every function call is assigned
+//     a tracing ID, but assignments within a function
+//     scope are only permanently retained if the value
+//     "escapes" the function invocation.
+var allocateTraceId = function() {
+	var trace_id_source = GLOBAL_OBJECT_TRACE_ID + 1;
+
+	return function() {
+		return trace_id_source++;
+	};
+};
+
+
+// objectTraceUtil.setupObjectHooks()
+//   Patch Object.prototype to hide all necessary extra fields
+//   due to tracing from the application logic. This must be
+//   called once before any application logic executes.
+//
 // objectTraceUtil.getObjectTraceId(obj)
 //   Get an unique ID that remains associated with an object
 //   for its entire lifetime.
@@ -173,35 +198,57 @@ var shouldTrace = function(a) {
 // objectTraceUtil.proxyInOperator(prop, obj)
 //   Proxy to call instead of |prop in obj| statements.
 var objectTraceUtil = (function() {
-	var trace_id_source = GLOBAL_OBJECT_TRACE_ID + 1;
 	// Objects store their trace ID in this property,
 	// which is marked as non-enumerable.
 	var trace_id_prop_name = '___jsane_trace_id';
 
-	// Update Object prototype to hide the trace property
-	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Enumerability_and_ownership_of_properties
+	// Global object independent of host environment
+	// See http://stackoverflow.com/questions/9642491/
+	var glob = (1,eval)('this');
 
-	// Changes are required for:
-	//  - 'in'. Instrumentation replaces the operator by a
-	//     call to |proxyInOperator|
-	//     TODO
-	//  - Object.hasOwnProperty()
-
+	// Since setupObjectHooks() modifies them, save the original
+	// versions of Object methods that we need.
+	//
+	// Gotcha: this causes observable changes in behaviour
+	// if application logic overrides these as well. Luckily,
+	// JS style guides typically discourage patching Object,
+	// Array etc.
 	var old_hasOwnProperty = Object.prototype.hasOwnProperty;
-	Object.prototype.hasOwnProperty = function(name) {
-		if (name === trace_id_prop_name) {
-			return false;
-		}
-
-		return old_hasOwnProperty.call(this, name);
-	} ;
-
 	var old_getOwnPropertyNames = Object.prototype.getOwnPropertyNames;
-	Object.prototype.getOwnPropertyNames = function() {
-		var names = old_getOwnPropertyNames.call(this);
-		var idx = names.indexOf(trace_id_prop_name);
-		return idx === -1 ? names : names.splice(idx, 1);
-	} ;
+	
+	var setupObjectHooks = function() {
+		// Update Object prototype to hide the trace property
+		// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Enumerability_and_ownership_of_properties
+
+		// Changes are required for:
+		//  - 'in'. Instrumentation replaces the operator by a
+		//     call to |proxyInOperator|
+		//     TODO
+		//  - Object.hasOwnProperty()
+
+		Object.prototype.hasOwnProperty = function(name) {
+			if (name === trace_id_prop_name) {
+				return false;
+			}
+
+			return old_hasOwnProperty.call(this, name);
+		};
+
+		Object.prototype.getOwnPropertyNames = function() {
+			var names = old_getOwnPropertyNames.call(this);
+			var idx = names.indexOf(trace_id_prop_name);
+			return idx === -1 ? names : names.splice(idx, 1);
+		};
+
+		// Since the trace property is non-enumerable, no change is
+		// required for:
+		//
+		//  - 'for .. in' loops (which would otherwise require special
+		//        patch code to be inserted into each loop to skip
+		//        the property.)
+		//  - Object.keys()
+		//  - Object.hasEnumerableProperty()
+	};
 
 	var proxyInOperator = function(name, obj) {
 		if (name === trace_id_prop_name) {
@@ -209,19 +256,6 @@ var objectTraceUtil = (function() {
 		}
 		return name in obj;
 	};
-
-	// Since the trace property is non-enumerable, no change is
-	// required for:
-	//
-	//  - 'for .. in' loops (which would otherwise require special
-	//        patch code to skip the property.)
-	//  - Object.keys()
-	//  - Object.hasEnumerableProperty()
-
-
-	// Global object independent of host environment
-	// See http://stackoverflow.com/questions/9642491/
-	var glob = (1,eval)('this');
 
 	var getObjectTraceId =  function(obj) {
 		// Do nothing if the input is already a numeric trace ID
@@ -245,7 +279,7 @@ var objectTraceUtil = (function() {
 		//       trace ID does not exist, the original function
 		//       is used to detect this case.
 		if (typeof trace_id === 'undefined' || !old_hasOwnProperty.call(obj, trace_id_prop_name)) {
-			var trace_id = trace_id_source++;
+			var trace_id = allocateTraceId();
 			// 
 			Object.defineProperty(obj, trace_id_prop_name, {
 				value: trace_id,
@@ -263,7 +297,8 @@ var objectTraceUtil = (function() {
 
 	return {
 		getObjectTraceId : getObjectTraceId,
-		proxyInOperator : proxyInOperator
+		proxyInOperator : proxyInOperator,
+		setupObjectHooks : setupObjectHooks
 	}
 })();
 
@@ -303,6 +338,12 @@ var tracer = (function() {
 		this.rhs = rhs;
 		this.rhs_scope_id = rhs_scope_id;
 		this.rhs_id = rhs_id;
+	};
+
+	// One frame on the |local_trace_stack|
+	var LocalTraceStackFrame = function(function_call_id) {
+		this.entries = {};
+		this.function_call_id = function_call_id;
 	};
 
 	var traceGlobal = function(lhs_scope_id, lhs_id, rhs, rhs_scope_id, rhs_id) {
@@ -645,6 +686,10 @@ exports.enterFunc = function(argument_names) {
 exports.leaveFunc = function() {
 	tracer.popLocalTraceScope();
 };
+
+//// INITIALIZATION ////////////////////////////////////////////////////////
+
+objectTraceUtil.setupObjectHooks();
 
 // Boilerplate to enable use in the browser outside node.js
 })(typeof exports === 'undefined' ? this['__rt'] = {} : exports);
