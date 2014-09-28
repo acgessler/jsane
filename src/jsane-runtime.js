@@ -156,6 +156,10 @@ var check = function(idx, format_arguments) {
 
 //// TRACING //////////////////////////////////////////////////////////////
 
+// Static tracing ID used for the global object
+// sync with jsane-instrument.js/GLOBAL_OBJECT_TRACE_ID
+var GLOBAL_OBJECT_TRACE_ID = 1;
+
 // Check if the value |a| qualifies for tracing.
 // Changing this to always return true would enable full data tracing
 var shouldTrace = function(a) {
@@ -169,7 +173,7 @@ var shouldTrace = function(a) {
 // objectTraceUtil.proxyInOperator(prop, obj)
 //   Proxy to call instead of |prop in obj| statements.
 var objectTraceUtil = (function() {
-	var trace_id_source = 0;
+	var trace_id_source = GLOBAL_OBJECT_TRACE_ID + 1;
 	// Objects store their trace ID in this property,
 	// which is marked as non-enumerable.
 	var trace_id_prop_name = '___jsane_trace_id';
@@ -212,13 +216,24 @@ var objectTraceUtil = (function() {
 	//  - 'for .. in' loops (which would otherwise require special
 	//        patch code to skip the property.)
 	//  - Object.keys()
-	//  - Object.hasEnumerableProperty()	
+	//  - Object.hasEnumerableProperty()
+
+
+	// Global object independent of host environment
+	// See http://stackoverflow.com/questions/9642491/
+	var glob = (1,eval)('this');
 
 	var getObjectTraceId =  function(obj) {
 		// Do nothing if the input is already a numeric trace ID
 		if (isNumber(obj)) {
 			return obj;
 		}
+
+		// Statically assign an ID for the global object
+		if (obj === glob) {
+			return GLOBAL_OBJECT_TRACE_ID;
+		}
+
 		var trace_id = obj[trace_id_prop_name];
 		// Create and assign a new trace ID to the object if either
 		//   i)  The corresponding property does not exist
@@ -291,6 +306,7 @@ var tracer = (function() {
 				while (stack_frame_cursor >= 0) {
 					var source = lookupLocalTrace(local_id, stack_frame_cursor);
 					if (isUndefined(source)) {
+						// No further trace info available.
 						break;
 					}
 
@@ -312,21 +328,23 @@ var tracer = (function() {
 					local_id = source.rhs_id;
 				}
 
-				var last_global_source = history[history.length - 1][1];
-				for (var i = history.length - 1; i >= 0; --i) {
-					var local_id = history[i][0];
-					var rhs = history[i][1].rhs;
+				if (history.length > 0) {
+					var last_global_source = history[history.length - 1][1];
+					for (var i = history.length - 1; i >= 0; --i) {
+						var local_id = history[i][0];
+						var rhs = history[i][1].rhs;
 
-					// Generate a (func_scope_id, local_id) -> last_global_source trace entry
-					var global_id = local_id;
-					var global_scope_id = source.rhs_scope_id;
+						// Generate a (func_scope_id, local_id) -> last_global_source trace entry
+						var global_id = local_id;
+						var global_scope_id = source.rhs_scope_id;
 
-					trace_item = new TraceItem(rhs,
-						last_global_source.rhs_scope_id,
-						last_global_source.rhs_id);
+						trace_item = new TraceItem(rhs,
+							last_global_source.rhs_scope_id,
+							last_global_source.rhs_id);
 
-					traceGlobal(global_scope_id, global_id, trace_item);
-					last_global_source = trace_item;
+						traceGlobal(global_scope_id, global_id, trace_item);
+						last_global_source = trace_item;
+					}
 				}
 			}
 		}
@@ -350,7 +368,7 @@ var tracer = (function() {
 	var popLocalTraceScope = function() {
 		local_trace_stack.pop();
 		// This may become |undefined| if the stack is empty
-		local_trace_stack_top = local_trace_stack[local_trace_stack.length];
+		local_trace_stack_top = local_trace_stack[local_trace_stack.length - 1];
 	};
 
 	return {
@@ -409,6 +427,7 @@ var format = function(spec, args) {
 	}
 	return spec;
 };
+
 
 //// EXPORTS //////////////////////////////////////////////////////////////
 
