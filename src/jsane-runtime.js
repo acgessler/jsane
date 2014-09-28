@@ -269,7 +269,24 @@ var objectTraceUtil = (function() {
 
 
 // tracer.traceGlobal(lhs_scope_id, lhs_id, rhs, rhs_scope_id, rhs_id)
+//   Record a trace entry that is permanently retained.
+//   |lhs_scope_id| can be either a tracing ID, or the object
+//   that is the target of the assignment being traced. In the
+//   latter case, the tracing ID of the object is looked up
+//   first (and a new one it assigned if the object has not
+//   been traced before).
+//
+//   When tracing an assignment of a local value (i.e.
+//   |rhs_scope_id| is null), the trace history of said local
+//   value is retrieved from the local tracing stack and promoted
+//   to global tracing to make sure it is retained.
+//
 // tracer.traceLocal(lhs_id, rhs, rhs_scope_id, rhs_id)
+//   Record a trace entry that is local to the current function.
+//   If no global trace entry makes use of the local value,
+//   the tracing value will be discarded as the function
+//   returns. Local tracing can not be used for variables
+//   that leak into other scopes (i.e. closures).
 var tracer = (function() {
 	var traces = {};
 
