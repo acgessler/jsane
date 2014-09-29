@@ -3,7 +3,7 @@
   "description": "Instruments JS to add runtime checks and provide data traces for common errors.",
   "author": "Alexander Gessler <alexander.gessler@gmx.net>",
   "dependencies": {
-    "falafel": "^0.3.x",
+    "falafel": "acgessler/node-falafel#master",
     "minimist": "^1.1.0",
     "npm": "^1.4.23",
     "sprintf-js": "0.0.7",
