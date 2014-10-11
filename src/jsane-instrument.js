@@ -77,7 +77,7 @@ var Context = function(options) {
 		// generate instrumentation that handles closures properly.
 		//
 		// All results are stored directly in AST nodes.
-		var ast = falafel(text, falafel_opts, function(node) {}).ast;
+		var ast = falafel(text, falafel_opts, function(node) {});
 		this.collectVariablesPerFunctionScope(ast);
 		this.resolveIdentifiers(ast);
 
@@ -233,6 +233,7 @@ var Context = function(options) {
 			prefix : '',
 		};
 
+		// Get trace stubs for both sides ofthe assignment
 		this.populateExpressionTraceStubs(node.left, subs, 'lhs_');
 		this.populateExpressionTraceStubs(node.right, subs, 'rhs_');
 
@@ -252,7 +253,7 @@ var Context = function(options) {
 				'var %(tmp0)s = %(lhs_val)s, ' +
 				'%(tmp1)s = %(rhs_val)s, ' +
 				'%(tmp2)s = %(tmp0)s %(op)s %(tmp1)s; ' +
-				'%(tmp3)s = %(runtime_name)s.chkArith(%(tmp2)s, %(tmp0)s, %(tmp1)s, ' +
+				'%(tmp3)s = %(runtime_name)s.chkArith(%(tmp2)s, +%(tmp0)s, %(tmp1)s, ' +
 					'\'%(op)s\', \'%(loc)s\');' +
 				'return %(lhs_val)s = %(runtime_name)s.assign(%(tmp3)s, ' +
 					'%(lhs_scope_id)s, %(lhs_id)s, %(rhs_scope_id)s, %(rhs_id)s, \'%(loc)s\');',
@@ -303,13 +304,14 @@ var Context = function(options) {
 		var	callee = node.callee,
 			self = this;
 
-		// For each argument, generate asignment trace
+		// For each argument, generate assignment trace
 		var js_args_array = '[' + _.map(node.arguments, function(arg, index) {
 			var arg_subs = {
 				index : index,
 				runtime_name : runtime_name,
 				loc : file_name + ':' + arg.loc.start.line
 			};
+
 			self.populateExpressionTraceStubs(arg, arg_subs, 'arg_');
 			return self.wrap(sprintf(
 				'%(preamble)s' + 
@@ -384,7 +386,8 @@ var Context = function(options) {
 	//
 	//   val            |node| evaluated
 	//   preamble       (Appended to) Preamble code to put before any
-	//                  use of the previous snippets.
+	//                  use of the previous snippets, containing any
+	//                  necessary computations.
 	//
 	this.populateExpressionTraceStubs = function(node, subs, prefix) {
 		if (typeof subs.preamble === 'undefined') {
@@ -402,13 +405,33 @@ var Context = function(options) {
 			subs[prefix + 'val'] = sprintf('%(tmp0)s[0][%(tmp0)s[1]]', subs_private);
 		}
 		else if (node.type === 'Identifier') {
-			// Resolve the identifier upwards in the AST.
-			var scope_id_js = this.resolveIdentifierScope(node);
-			if (scope_id_js === null) {
+			var scope_id_js	;
+			var resolved = node.resolved;
+			
+			if (typeof resolved === 'undefined') {
+				this.error("AST node not resolved before");
+			}
+			else if (resolved === null) {
 				// Not found. This means it is in fact a property
 				// lookup (or setting of a property) on the
 				// global object.
 				scope_id_js = GLOBAL_OBJECT_TRACE_ID;
+			}
+			else if (resolved.getVariable().isLocal()) {
+				// A pure local variable which gets recorded on the
+				// local tracing stack and only promoted to global
+				// tracing if needed.
+				scope_id_js	 = "null";
+			}
+			else {
+				// A variable that is closed over, so it potentially
+				// lives in a different scope. The tracing ID with
+				// which to associate it is found in a runtime
+				// variable declared by that scope. Tracing will
+				// be global.
+				scope_id_js	 = resolved.getVariable()
+						.getScope()
+						.getRuntimeTraceIdVariableName();
 			}
 
 			subs[prefix + 'scope_id']= scope_id_js;
@@ -422,11 +445,6 @@ var Context = function(options) {
 			subs[prefix + 'val'] = node.source();
 		}
 	};
-
-	// JS scope
-	var outer = this;
-	
-
 
 
 	/////////////////////////////
@@ -444,7 +462,7 @@ var Context = function(options) {
 			// top-level variable declarations only does not work,
 			// for example "for (var i = 0;  ..)" will not be
 			// top-level in the function AST node, but creates
-			// a function-level variable (hoisting).
+			// a function-level variable due to hoisting.
 			var scope = new scoping_util.Scope();
 			ast_util.postTraverse(node, function(subnode) {
 				// TODO: function declarations
@@ -453,7 +471,7 @@ var Context = function(options) {
 				}
 
 				// Do *not* recurse into nested functions
-				if (node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression') {
+				if (subnode.type === 'FunctionDeclaration' || subnode.type === 'FunctionExpression') {
 					return false;
 				}
 			});
@@ -465,7 +483,7 @@ var Context = function(options) {
 
 	
 	/////////////////////////////
-	// Traverse the given |ast| and resolve all identifiers upwards.
+	// Traverse the given |ast| and resolve all identifiers using JS scoping rules.
 	//
 	// Each identifier node in the tree is assigned a |VariableReference|
 	// instance which is stored in the |resolved| property of the node.
@@ -505,54 +523,6 @@ var Context = function(options) {
 				return true;
 			});
 		});
-	};
-
-
-	/////////////////////////////
-	// Resolve |node.name| upwards using JS' scoping rules.
-	//
-	// The return value is either
-	//     |false| if the identifier is resolved to be globally scoped
-	//  OR
-	//     The name of a JS variable that (at runtime) evaluates to
-	//     contain the function tracing ID associated
-	//     with the identifier (this variable will be declared in
-	//     the scope in which the identifier is declared, thus it
-	//     is accessible from anyone who could see the node itself).
-	//  OR
-	//     
-	//      
-	this.resolveIdentifierScope = function(node) {
-		var resolved = node.resolved;
-		if (typeof resolved === 'undefined') {
-			this.error("Identifier not resolved: " + node.name);
-			return;
-		}
-
-		if (resolved === null) {
-			return null;
-		}
-
-		var identifier = node.identifier;
-
-		while (node = node.parent) {
-			if (node.type !== 'FunctionDeclaration' && node.type !== 'FunctionExpression') {
-				continue;
-			}
-
-			var scope = this.cacheExecutionScopeVariables(node);
-			if (typeof scope[identifier] === 'undefined') {
-				continue;
-			}
-
-			if (node.function_scope_id_var_name === 'undefined') {
-				node.function_scope_id_var_name = scoping_util.genUniqueName() + '_scope';
-			}
-
-			return node.function_scope_id_var_name;
-		}
-
-		return null;
 	};
 
 

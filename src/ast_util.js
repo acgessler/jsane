@@ -9,32 +9,41 @@ Utilities to process an esprima AST. Only executes in a node environment.
 (function(exports){
 "use strict";
 
+// Module imports
+var _ = require('underscore')._;
+
+
 //// IMPLEMENTATION /////////////////////////////////////////////////////////
 
 // Post-traversal. If a visit returns false, the subtree of that node
 // is not traversed.
-function postTraverse(ast, visitor) {
-	for (var k in ast) {
-		var node = ast[k];
+function postTraverse(node, visitor) {
+	if (!visitor(node)) {
+		return;
+	}
+	
+	for (var key in node) {
+		if (key === 'parent') {
+			continue;
+		}
+		var child = node[key];
 
-		if (!node) {
+		if (!child) {
 			continue;
 		}
 		
-		if (node instanceof Array) {
-			for (var i = 0; i < node.length; ++i) {
-				postTraverse(node[i], visitor);
+		if (_.isArray(child)) {
+			for (var i = 0; i < child.length; ++i) {
+				if (typeof child[i].type !== 'string') {
+					continue;
+				}
+				postTraverse(child[i], visitor);
 			}
-		}
-
-		if (typeof node.type === 'undefined') {
 			continue;
 		}
-
-		if (!visitor(node)) {
-			continue;
-		}
-		postTraverse(node, visitor);
+		else if (typeof child.type === 'string') {
+			postTraverse(child, visitor);
+		}		
 	}
 };
 

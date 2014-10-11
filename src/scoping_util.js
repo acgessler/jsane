@@ -25,7 +25,11 @@ var Scope = function() {
 
 	// Name of JS runtime variable that will be injected into the
 	// scope to contain the current funcion tracing Id.
-	this.runtime_trace_id_variable_name = 'ft_' + genUniqueName();
+	var runtime_trace_id_variable_name = 'ft_' + genUniqueName();
+
+	this.getRuntimeTraceIdVariableName = function() {
+		return runtime_trace_id_variable_name;
+	}
 
 	// Add a variable with a given name to the scope
 	this.createVariable = function(name) {
@@ -44,7 +48,7 @@ var Scope = function() {
 	// A reference is created using |Variable.createReferenceFromScope|
 	this.hasEnclosedVariables = function() {
 		for (var k in variables) {
-			if (variables[k].times_referenced_from_nested_scopes > 0) {
+			if (!variables[k].isLocal()) {
 				return true;
 			}
 		}
@@ -55,22 +59,32 @@ var Scope = function() {
 // Variable, bound to the |Scope| it is declared in.
 var Variable = function(scope) {
 	var self = this;
-	this.scope = scope;
-	this.times_referenced_from_nested_scopes = 0;
+	
+	var local = true;
 
 	// Create a reference to the variable from |from_scope|
 	this.createReferenceFromScope = function(from_scope) {
-		if (from_scope !== self.scope) {
-			++this.times_referenced_from_nested_scopes;
+		if (from_scope !== scope) {
+			local = false;
 		}
-		return new VariableReference(this, from_scope);
+		return new VariableReference(this);
+	};
+
+	this.isLocal = function() {
+		return local;
+	};
+
+	this.getScope = function() {
+		return scope;
 	};
 };
 
 // Reference to a |Variable|
-var VariableReference = function(variable, from_scope) {
-	this.variable = variable;
-	this.is_local = from_scope === variable.scope;
+var VariableReference = function(variable) {
+	
+	this.getVariable = function() {
+		return variable;
+	};
 };
 
 //// EXPORTS //////////////////////////////////////////////////////////////
