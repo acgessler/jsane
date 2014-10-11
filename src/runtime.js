@@ -47,8 +47,9 @@ category_texts[CAT_BUG_SOURCE] = "This may be a bug.";
 category_texts[CAT_BUG_HIDDEN] = "This may be inadvertly hiding a bug.";
 
 /////////////////////
-// Data for all possible checks_cfg. Each entry is a
-// [severity, description_template] tuple.
+// Configuration for all supported runtime checks. Each entry is a
+// [severity, description_template, details_template, category] tuple,
+// see the first entry for an example.
 var checks_cfg = [
 
 	// 0 - Index of the check. Do never change.
@@ -157,7 +158,7 @@ var check = function(idx, format_arguments) {
 //// TRACING //////////////////////////////////////////////////////////////
 
 // Static tracing ID used for the global object
-// sync with jsane-instrument.js/GLOBAL_OBJECT_TRACE_ID
+// sync with src/instrument.js/GLOBAL_OBJECT_TRACE_ID
 var GLOBAL_OBJECT_TRACE_ID = 1;
 
 // shouldTrace()
@@ -487,17 +488,17 @@ var format = function(spec, args) {
 //// EXPORTS //////////////////////////////////////////////////////////////
 
 exports.info = function() {
-	return 'jsane-runtime library, v0.1';
+	return 'JSane runtime library, v0.1';
 };
 
-/** Set/reset custom printing function
-    of type |function(message)|
- */
+
+// Set/reset custom printing function
 exports.setPrintFunc = function(f) {
 	print_func = (f === undefined ? defaultPrintFunc : f);
 };
 
-/** Checks on |a| |op| |b| having resulted in |value| */
+
+// Checks on |a| |op| |b| having resulted in |value| 
 exports.chkArith = function(value, a, b, op, where) {
 	if (op === '+') {
 		// See ECMA5.1 #11.6.1
@@ -565,9 +566,10 @@ exports.chkArith = function(value, a, b, op, where) {
 	return value;
 };
 
-/** Checks on func(*args) where |func_expr| is the raw source
-    expression that evaluated to |func| and |func_this|
-    is the value of |this| to use. */
+
+// Checks on func(*args) where |func_expr| is the raw source
+//  expression that evaluated to |func| and |func_this|
+//  is the value of |this| to use.
 exports.chkCall = function(func, func_this, args, func_expr, where) {
 	// E2: Attempt to call non-callable
 	if (!func) {
@@ -610,22 +612,22 @@ exports.chkCall = function(func, func_this, args, func_expr, where) {
 	return result;
 };
 
-/**  Trace assignment from RHS to LHS.
-     Source and destination are identified by a (scope_id, id)
-     tuple which must be one of the following combos:
 
-    i)   Object, String
-         Assignment to object property
-
-	ii)  null, String
-	     Assignment to/from local variable
-
-	iii) null, Number
-	     Assignment to argument #n of a function being called
- 
-     Assign is tied closely with function call instrumentation to
-     handle data traces across function invocations correctly.
- */
+//  Trace assignment from RHS to LHS.
+//   Source and destination are identified by a (scope_id, id)
+//   tuple which must be one of the following combos:
+//
+//  i)   Object, String
+//       Assignment to object property
+//
+//	ii)  null, String
+//	     Assignment to/from local variable
+//
+//	iii) null, Number
+//	     Assignment to argument #n of a function being called
+// 
+//  Assign is tied closely with function call instrumentation to
+//  handle data traces across function invocations correctly.
 exports.assign = function(rhs, lhs_scope_id, lhs_id, rhs_scope_id, rhs_id) {
 	// Record trace if either
 	//	i)  the value of the RHS qualifies
@@ -654,11 +656,11 @@ exports.assign = function(rhs, lhs_scope_id, lhs_id, rhs_scope_id, rhs_id) {
 	return rhs;
 };
 
-/** Enter an instrumented function.
-    
-    |argument_names| is an array containing the names of all
-    named arguments that the function takes.
- */
+
+// Enter an instrumented function.
+//  
+//  |argument_names| is an array containing the names of all
+//  named arguments that the function takes.
 exports.enterFunc = function(argument_names) {
 	// TODO: determine if caller is instrumented first.
 
@@ -679,7 +681,8 @@ exports.enterFunc = function(argument_names) {
 	var scope = tracer.pushLocalTraceScope();
 };
 
-/** Leave an instrumented function */
+
+// Leave an instrumented function
 exports.leaveFunc = function() {
 	tracer.popLocalTraceScope();
 };
