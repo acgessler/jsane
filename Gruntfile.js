@@ -10,7 +10,7 @@ module.exports = function(grunt) {
       },
       runtime: {
         files: {
-          'compiled/jsane-runtime.min.js': ['src/jsane-runtime.js']
+          'compiled/runtime.min.js': ['src/runtime.js']
         }
       }
     },

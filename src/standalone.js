@@ -1,12 +1,17 @@
+/** 
+Jsane - Javascript Sanity Instrumentation Toolkit
+See top level LICENSE or github.com/acgessler/jsane
+
+Standalone binary.
+*/
 
 var fs = require('fs');
 var path = require('path');
-var instrumentator = require('./jsane-instrument');
+var instrumentator = require('./instrument');
 
-/**
- *  Annotate |src_file| and save the result to |dest_file|,
- *  which can be the same as |src_file|.
- */
+//
+// Annotate |src_file| and save the result to |dest_file|,
+// which can be the same as |src_file|.
 exports.processFile = function(src_file, dest_file) {
 	var filePath = path.join(__dirname + '/start.html');
 
@@ -25,7 +30,6 @@ exports.processFile = function(src_file, dest_file) {
 
 
 function main(argv) {
-
 	for (var i = 0; i < argv._.length; ++i) {
 		exports.processFile(argv._[i]);
 	}

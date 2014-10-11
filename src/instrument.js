@@ -22,7 +22,7 @@ var	falafel = require('falafel')
 // Mixed constants
 var	DEFAULT_RUNTIME_NAME = '__rt'
 ,	INDEX_NODE_MODULE = 'jsane'
-,	RUNTIME_NODE_MODULE = 'compiled/jsane-runtime.min'
+,	RUNTIME_NODE_MODULE = 'compiled/runtime.min'
 ,	GLOBAL_OBJECT_TRACE_ID = 1
 ;
 

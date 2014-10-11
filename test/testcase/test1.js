@@ -24,6 +24,7 @@ var c2 = 2 + b2;
 expect(c2).to.equal(3);
 c2 = b2;
 c2 += 2;
+
 // JSane: ignore
 expect(c2).to.equal(3);
 ">>";

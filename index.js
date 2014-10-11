@@ -7,7 +7,7 @@
 
 // Make the runtime library available as |runtime|. If this name
 // changes, jsane-instrument needs to be updated.
-exports.runtime = require('./src/jsane-runtime');
+exports.runtime = require('./src/runtime');
 
 // Public API to instrument files
-exports.processFile = require('./src/jsane').processFile;
+exports.processFile = require('./src/standalone').processFile;

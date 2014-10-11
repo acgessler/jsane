@@ -4,7 +4,7 @@ var	chai = require('chai')
 ,	fs = require('fs')
 ,	path = require('path')
 ,	sprintf = require('sprintf-js').sprintf
-,	jsane = require('../src/jsane-instrument')
+,	jsane = require('../src/instrument')
 ,	_ = require('underscore')._
 ;
 
@@ -126,14 +126,14 @@ describe('esnull', function() {
    			});
 
    			it('should be able to pre-exist', function() {
-   				global.magic_runtime_name = require('../src/jsane-runtime');
+   				global.magic_runtime_name = require('../src/runtime');
    				runTestcase(1001, {
    					runtime_linkage : jsane.RUNTIME_NONE,
    					runtime_name : 'magic_runtime_name'
    				});
 
    				// The same, minified version of the runtime
-   				global.magic_runtime_name2 = require('../compiled/jsane-runtime.min');
+   				global.magic_runtime_name2 = require('../compiled/runtime.min');
    				runTestcase(1001, {
    					runtime_linkage : jsane.RUNTIME_NONE,
    					runtime_name : 'magic_runtime_name2'
