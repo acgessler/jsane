@@ -192,8 +192,9 @@ var allocateTraceId = function() {
 //   called once before any application logic executes.
 //
 // objectTraceUtil.getObjectTraceId(obj)
-//   Get an unique ID that remains associated with an object
-//   for its entire lifetime.
+//   Create an unique tracing ID that remains associated with
+//   the object |obj| for its entire lifetime. If the object
+//   has already a tracing ID assigned, the existing ID is returned.
 //
 // objectTraceUtil.proxyInOperator(prop, obj)
 //   Proxy to call instead of |prop in obj| statements.
@@ -305,11 +306,7 @@ var objectTraceUtil = (function() {
 
 // tracer.traceGlobal(lhs_scope_id, lhs_id, rhs, rhs_scope_id, rhs_id)
 //   Record a trace entry that is permanently retained.
-//   |lhs_scope_id| can be either a tracing ID, or the object
-//   that is the target of the assignment being traced. In the
-//   latter case, the tracing ID of the object is looked up
-//   first (and a new one it assigned if the object has not
-//   been traced before).
+//   |lhs_scope_id| must specify a valid tracing ID.
 //
 //   When tracing an assignment of a local value (i.e.
 //   |rhs_scope_id| is null), the trace history of said local
@@ -410,15 +407,15 @@ var tracer = (function() {
 
 	var lookupLocalTrace = function(id, cursor) {
 		cursor = isUndefined(cursor) ? local_trace_stack.length - 1 : cursor;
-		return local_trace_stack[cursor][id];
+		return local_trace_stack[cursor].entries[id];
 	};
 
 	var traceLocal = function(lhs_id, trace_rhs, rhs, rhs_scope_id, rhs_id) {
-		local_trace_stack_top[lhs_id] = new TraceItem(rhs, rhs_scope_id, rhs_id);
+		//local_trace_stack_top.entries[lhs_id] = new TraceItem(rhs, rhs_scope_id, rhs_id);
 	};
 
 	var pushLocalTraceScope = function() {
-		local_trace_stack_top = {};
+		local_trace_stack_top = new LocalTraceStackFrame(allocateTraceId());
 		local_trace_stack.push(local_trace_stack_top);
 		return local_trace_stack_top;
 	};

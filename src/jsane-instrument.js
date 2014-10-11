@@ -15,12 +15,15 @@ var	falafel = require('falafel')
 ,	sprintf = require('sprintf-js').sprintf
 ,	fs = require('fs')
 ,	_ = require('underscore')._
+,	ast_util = require('./ast_util')
+,	scoping_util = require('./scoping_util')
 ;
 
 // Mixed constants
 var	DEFAULT_RUNTIME_NAME = '__rt'
 ,	INDEX_NODE_MODULE = 'jsane'
 ,	RUNTIME_NODE_MODULE = 'compiled/jsane-runtime.min'
+,	GLOBAL_OBJECT_TRACE_ID = 1
 ;
 
 
@@ -66,9 +69,25 @@ var Context = function(options) {
 
 	/////////////////////////////
 	this.instrument = function(text, file_name) {
-
 		var ignored_lines = this.findIgnoredLines(text);
-		var instrumented_text = falafel(text, falafel_opts, function(node) {
+
+		// First parse the text into an AST and do some initial
+		// passes to tag all scopes and their variables, and to
+		// resolve all variable references. This allows us to
+		// generate instrumentation that handles closures properly.
+		//
+		// All results are stored directly in AST nodes.
+		var ast = falafel(text, falafel_opts, function(node) {}).ast;
+		this.collectVariablesPerFunctionScope(ast);
+		this.resolveIdentifiers(ast);
+
+		// Then pass the augmented AST to falafel and have it perform
+		// a pre-traversal on it, applying instrumentation code
+		// in-place, children before their parents.
+		//
+		// We use a patched version of falfel to enable re-use of ASTs.
+		// This can change when https://github.com/substack/node-falafel/pull/27 is merged.
+		var instrumented_text = falafel(ast, falafel_opts, function(node) {
 			// Add explicit semicolon after statements - implicit breaks can
 			// change behaviour with the current anonymous function-based
 			// style of instrumenting the code.
@@ -115,7 +134,7 @@ var Context = function(options) {
 			else if (node.type === 'FunctionExpression' || node.type === 'FunctionDeclaration') {
 				self.instrumentFunction(node, file_name, text);
 			}
-		});
+		}).toString();
 
 		console.log(instrumented_text);
 
@@ -146,6 +165,15 @@ var Context = function(options) {
 
 	/////////////////////////////
 	this.instrumentFunction = function(node, file_name) {
+		// Each function expression/declaration must have a |scope|
+		// member that has been populated in a previous pass through
+		// the AST.
+		var scope = node.scope;
+		if (typeof scope === 'undefined') {
+			this.error("Function lacks scope tagging");
+			return;
+		}
+
 		// node.body.source() includes the curly braces,
 		// node.body.body is the raw list of statement
 		// nodes in the body of the function.
@@ -178,7 +206,8 @@ var Context = function(options) {
 			runtime_name : runtime_name,
 			body : body_without_braces,
 			arg_names_js : arg_names_js, 
-			prefix_string : prefix_string
+			prefix_string : prefix_string,
+			runtime_trace_id_variable_name : scope.runtime_trace_id_variable_name
 		};
 
 		node.body.update(sprintf(
@@ -213,10 +242,10 @@ var Context = function(options) {
 			// by the evaluation of a.
 			//
 			// See ECMA5.1 #11.3.2
-			subs.tmp0 = this.genUniqueName();
-			subs.tmp1 = this.genUniqueName();
-			subs.tmp2 = this.genUniqueName();
-			subs.tmp3 = this.genUniqueName();
+			subs.tmp0 = scoping_util.genUniqueName();
+			subs.tmp1 = scoping_util.genUniqueName();
+			subs.tmp2 = scoping_util.genUniqueName();
+			subs.tmp3 = scoping_util.genUniqueName();
 			subs.op = op[0];
 			node.update(this.wrap(sprintf(
 				'%(preamble)s' + 
@@ -247,9 +276,9 @@ var Context = function(options) {
 		}
 		if (op == '+' || op == '-' || op == '*' || op == '/' || op == '|' || op == '&') {
 			var subs = {
-				tmp0 : this.genUniqueName(),
-				tmp1 : this.genUniqueName(),
-				tmp2 : this.genUniqueName(),
+				tmp0 : scoping_util.genUniqueName(),
+				tmp1 : scoping_util.genUniqueName(),
+				tmp2 : scoping_util.genUniqueName(),
 				lhs : node.left.source(),
 				rhs : node.right.source(),
 				op : op,
@@ -290,9 +319,9 @@ var Context = function(options) {
 		}).join(',') + ']';
 
 		var subs = {
-				tmp0 : this.genUniqueName(),
-				tmp1 : this.genUniqueName(),
-				tmp2 : this.genUniqueName(),
+				tmp0 : scoping_util.genUniqueName(),
+				tmp1 : scoping_util.genUniqueName(),
+				tmp2 : scoping_util.genUniqueName(),
 				callee : callee.source(),
 				original_callee : JSON.stringify(this.getOriginalSource(callee, original_text)),
 				args : js_args_array,
@@ -364,7 +393,7 @@ var Context = function(options) {
 		if (node.type === 'MemberExpression') {
 			var subs_private = {
 				split_func : this.splitMemberExpression(node),
-				tmp0 : this.genUniqueName()
+				tmp0 : scoping_util.genUniqueName()
 			};
 			
 			subs.preamble += sprintf('var %(tmp0)s = %(split_func)s;', subs_private);
@@ -373,7 +402,16 @@ var Context = function(options) {
 			subs[prefix + 'val'] = sprintf('%(tmp0)s[0][%(tmp0)s[1]]', subs_private);
 		}
 		else if (node.type === 'Identifier') {
-			subs[prefix + 'scope_id'] = 'null';
+			// Resolve the identifier upwards in the AST.
+			var scope_id_js = this.resolveIdentifierScope(node);
+			if (scope_id_js === null) {
+				// Not found. This means it is in fact a property
+				// lookup (or setting of a property) on the
+				// global object.
+				scope_id_js = GLOBAL_OBJECT_TRACE_ID;
+			}
+
+			subs[prefix + 'scope_id']= scope_id_js;
 			subs[prefix + 'id'] = '"' + node.name + '"';
 			subs[prefix + 'val'] = node.name;
 		}
@@ -383,7 +421,139 @@ var Context = function(options) {
 			subs[prefix + 'id'] = 'null';
 			subs[prefix + 'val'] = node.source();
 		}
-	}
+	};
+
+	// JS scope
+	var outer = this;
+	
+
+
+
+	/////////////////////////////
+	// Traverse the given |ast| and assign each function node
+	// a |Scope| instance stored in |node.scope|. The scope
+	// instance collects all variables declared in that scope.
+	this.collectVariablesPerFunctionScope = function(ast) {
+		// Downwards search for all function scopes
+		ast_util.postTraverse(ast, function(node) {
+			if (node.type !== 'FunctionDeclaration' && node.type !== 'FunctionExpression') {
+				return true;
+			}
+
+			// Search downward within the function. Looking for
+			// top-level variable declarations only does not work,
+			// for example "for (var i = 0;  ..)" will not be
+			// top-level in the function AST node, but creates
+			// a function-level variable (hoisting).
+			var scope = new scoping_util.Scope();
+			ast_util.postTraverse(node, function(subnode) {
+				// TODO: function declarations
+				if (subnode.type === 'VariableDeclarator') {
+					scope.createVariable(subnode.id.name);
+				}
+
+				// Do *not* recurse into nested functions
+				if (node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression') {
+					return false;
+				}
+			});
+
+			node.scope = scope;
+			return true;
+		});
+	};
+
+	
+	/////////////////////////////
+	// Traverse the given |ast| and resolve all identifiers upwards.
+	//
+	// Each identifier node in the tree is assigned a |VariableReference|
+	// instance which is stored in the |resolved| property of the node.
+	//
+	// If an identifier cannot be resolved, the |resolved| property
+	// of the node is set to null.
+	this.resolveIdentifiers = function(ast) {
+		// We do not strictly need post-traversal here
+		ast_util.postTraverse(ast, function(node) {
+			if (node.type !== 'Identifier') {
+				return true;
+			}
+
+			node.resolved = null;
+
+			var name = node.name;
+			var identifier_scope = null;
+			ast_util.walkParentsUp(node, function(parent_node) {
+				// Check if the parent node has a |scope| field.
+				var scope = parent_node.scope;
+				if (!scope) {
+					return true;
+				}
+
+				// If this is the first scope we encounter going upwards,
+				// then it is the scope in which the identifier occurs.
+				if (!identifier_scope) {
+					identifier_scope = scope;
+				}
+
+				var variable = scope.lookupVariable(name);
+				if (variable) {
+					node.resolved = variable.createReferenceFromScope(identifier_scope);
+					return false;
+				}
+
+				return true;
+			});
+		});
+	};
+
+
+	/////////////////////////////
+	// Resolve |node.name| upwards using JS' scoping rules.
+	//
+	// The return value is either
+	//     |false| if the identifier is resolved to be globally scoped
+	//  OR
+	//     The name of a JS variable that (at runtime) evaluates to
+	//     contain the function tracing ID associated
+	//     with the identifier (this variable will be declared in
+	//     the scope in which the identifier is declared, thus it
+	//     is accessible from anyone who could see the node itself).
+	//  OR
+	//     
+	//      
+	this.resolveIdentifierScope = function(node) {
+		var resolved = node.resolved;
+		if (typeof resolved === 'undefined') {
+			this.error("Identifier not resolved: " + node.name);
+			return;
+		}
+
+		if (resolved === null) {
+			return null;
+		}
+
+		var identifier = node.identifier;
+
+		while (node = node.parent) {
+			if (node.type !== 'FunctionDeclaration' && node.type !== 'FunctionExpression') {
+				continue;
+			}
+
+			var scope = this.cacheExecutionScopeVariables(node);
+			if (typeof scope[identifier] === 'undefined') {
+				continue;
+			}
+
+			if (node.function_scope_id_var_name === 'undefined') {
+				node.function_scope_id_var_name = scoping_util.genUniqueName() + '_scope';
+			}
+
+			return node.function_scope_id_var_name;
+		}
+
+		return null;
+	};
 
 
 	/////////////////////////////
@@ -417,13 +587,6 @@ var Context = function(options) {
 		console.info(text);
 	};
 
-
-	/////////////////////////////
-	// Get a real, unique name w.r.t to the current scope.
-	// For now, a random id.
-	this.genUniqueName = function() {
-		return format('tmp_%d', Math.floor(Math.random() * 1000000000));
-	};
 
 	/////////////////////////////
 	this.wrap = function(text) {
@@ -535,6 +698,4 @@ exports.instrumentCode = function(text, file_name, options) {
 
 exports.DEFAULT_RUNTIME_NAME = DEFAULT_RUNTIME_NAME;
 
-
-// Boilerplate to enable use in the browser outside node.js
-})(typeof exports === 'undefined' ? this['jsane'] = {} : exports);
+})(exports);
