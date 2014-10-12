@@ -270,10 +270,10 @@ var Context = function(options) {
 	/////////////////////////////
 	this.instrumentBinaryExpression = function(node, file_name) {
 		var op = node.operator;
-		if (op[1] == '=') { // Support compound assignment
+		if (op[1] === '=') { // Support compound assignment
 			op = op[0];
 		}
-		if (op == '+' || op == '-' || op == '*' || op == '/' || op == '|' || op == '&') {
+		if (op === '+' || op === '-' || op === '*' || op === '/' || op === '|' || op === '&') {
 			var subs = {
 				tmp0 : scoping_util.genUniqueName(),
 				tmp1 : scoping_util.genUniqueName(),
@@ -292,6 +292,17 @@ var Context = function(options) {
 				'return %(runtime_name)s.chkArith(%(tmp2)s, %(tmp0)s, %(tmp1)s, ' +
 					'\'%(op)s\', \'%(loc)s\');',
 				subs)));
+		}
+		else if (op === 'in') {
+			// |a in b| is replaced by a call to the |proxyInOperator|
+			// provided by the runtime. This is necessary to hide
+			// properties added to objects being traced.
+			var subs = {
+				lhs : node.left.source(),
+				rhs : node.right.source(),
+				runtime_name : runtime_name,
+			};
+			node.update(sprintf('%(runtime_name)s.proxyInOperator(%(lhs)s, %(rhs)s)', subs));
 		}
 	};
 

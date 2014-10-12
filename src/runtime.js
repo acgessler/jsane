@@ -202,6 +202,8 @@ var allocateTraceId = function() {
 var objectTraceUtil = (function() {
 	// Objects store their trace ID in this property,
 	// which is marked as non-enumerable.
+	//
+	// This needs to be kept in sync with test/testcase/test_property_iteration.js
 	var trace_id_prop_name = '___jsane_trace_id';
 
 	// Global object independent of host environment
@@ -216,7 +218,7 @@ var objectTraceUtil = (function() {
 	// JS style guides typically discourage patching Object,
 	// Array etc.
 	var old_hasOwnProperty = Object.prototype.hasOwnProperty;
-	var old_getOwnPropertyNames = Object.prototype.getOwnPropertyNames;
+	var old_getOwnPropertyNames = Object.getOwnPropertyNames;
 	
 	var setupObjectHooks = function() {
 		// Update Object prototype to hide the trace property
@@ -236,10 +238,13 @@ var objectTraceUtil = (function() {
 			return old_hasOwnProperty.call(this, name);
 		};
 
-		Object.prototype.getOwnPropertyNames = function() {
-			var names = old_getOwnPropertyNames.call(this);
+		Object.getOwnPropertyNames = function(o) {
+			var names = old_getOwnPropertyNames.call(this, o);
 			var idx = names.indexOf(trace_id_prop_name);
-			return idx === -1 ? names : names.splice(idx, 1);
+			if( idx !== -1) {
+				names.splice(idx, 1);
+			}
+			return names;
 		};
 
 		// Since the trace property is non-enumerable, no change is
@@ -250,6 +255,7 @@ var objectTraceUtil = (function() {
 		//        the property.)
 		//  - Object.keys()
 		//  - Object.hasEnumerableProperty()
+		//  - Object.propertyIsEnumerable()
 	};
 
 	var proxyInOperator = function(name, obj) {
@@ -732,6 +738,11 @@ exports.enterFunc = function(argument_names) {
 exports.leaveFunc = function() {
 	tracer.popLocalTraceScope();
 };
+
+
+// Export proxy for |a in b| operator.
+exports.proxyInOperator	= objectTraceUtil.proxyInOperator;
+
 
 //// INITIALIZATION ////////////////////////////////////////////////////////
 
