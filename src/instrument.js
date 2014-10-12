@@ -207,13 +207,13 @@ var Context = function(options) {
 			body : body_without_braces,
 			arg_names_js : arg_names_js, 
 			prefix_string : prefix_string,
-			runtime_trace_id_variable_name : scope.runtime_trace_id_variable_name
+			runtime_trace_id_variable_name : scope.getRuntimeTraceIdVariableName()
 		};
 
 		node.body.update(sprintf(
 			'{' +
 				'%(prefix_string)s ' +
-				'%(runtime_name)s.enterFunc(%(arg_names_js)s); ' +
+				'var %(runtime_trace_id_variable_name)s = %(runtime_name)s.enterFunc(%(arg_names_js)s); ' +
 				'%(body)s;' +
 				'%(runtime_name)s.leaveFunc();' +
 			'}',
@@ -253,7 +253,7 @@ var Context = function(options) {
 				'var %(tmp0)s = %(lhs_val)s, ' +
 				'%(tmp1)s = %(rhs_val)s, ' +
 				'%(tmp2)s = %(tmp0)s %(op)s %(tmp1)s; ' +
-				'%(tmp3)s = %(runtime_name)s.chkArith(%(tmp2)s, +%(tmp0)s, %(tmp1)s, ' +
+				'%(tmp3)s = %(runtime_name)s.chkArith(%(tmp2)s, %(tmp0)s, %(tmp1)s, ' +
 					'\'%(op)s\', \'%(loc)s\');' +
 				'return %(lhs_val)s = %(runtime_name)s.assign(%(tmp3)s, ' +
 					'%(lhs_scope_id)s, %(lhs_id)s, %(rhs_scope_id)s, %(rhs_id)s, \'%(loc)s\');',
