@@ -1,3 +1,6 @@
+# Instrumented test cases are for debugging only
+test/testcase_instrumented
+
 # Logs
 logs
 *.log
