@@ -83,16 +83,19 @@ function installTestAssertions(jsane_runtime_name, source)
 // The list can be empty, in which case CODE is exected to trigger
 // no checks.
 function runTestcase(id, options) {
-	var	src_file = path.join(__dirname, 'testcase', 'test' + id + '.js')
-	,	source = fs.readFileSync(src_file, {encoding : 'utf-8'})
-	;
+	var src_file = path.join(__dirname, 'testcase', 'test' + id + '.js');
+   var debug_file = path.join(__dirname, 'testcase_instrumented', 'instrumented_test' + id + '.js');
+	var source = fs.readFileSync(src_file, {encoding : 'utf-8'});
 
 	options = options || {};
-	// Set jsane_node_module to make sure jsane-runtime is found locally
+	// Set jsane_node_module to make sure jsane runtime is found locally
 	options.jsane_node_module = options.jsane_node_module || '../';
 
 	source = jsane.instrumentCode(source, 'test.js', options).toString();
 	expect(source).to.be.a('string');
+
+   // Write instrumented test source to a file for later inspection
+   fs.writeFileSync(debug_file, source, {encoding : 'utf-8'});
 
 	// Install test assertions in the source code
 	var jsane_runtime_name = options.runtime_name || jsane.DEFAULT_RUNTIME_NAME;
@@ -100,6 +103,7 @@ function runTestcase(id, options) {
 
 	eval(source);
 }
+
 
 // Main test case list - most simply invoke runTestcase()
 describe('esnull', function() {
