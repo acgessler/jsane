@@ -484,6 +484,45 @@ var format = function(spec, args) {
 	return spec;
 };
 
+var isNativeFunction = (function() {
+	// Source: https://gist.github.com/jdalton/5e34d890105aca44399f
+	// Embedded to avoid dependency. May move this out and collate during build.
+ 
+	// Used to resolve the internal `[[Class]]` of values.
+	var toString = Object.prototype.toString;
+
+	// Used to resolve the decompiled source of functions.
+	var fnToString = Function.prototype.toString;
+
+	// Used to detect host constructors (Safari > 4; really typed array specific).
+	var reHostCtor = /^\[object .+?Constructor\]$/;
+
+	// Compile a regexp using a common native method as a template.
+	// We chose `Object#toString` because there's a good chance it is not being mucked with.
+	var reNative = RegExp('^' +
+		// Coerce `Object#toString` to a string.
+		String(toString)
+		// Escape any special regexp characters.
+		.replace(/[.*+?^${}()|[\]\/\\]/g, '\\$&')
+		// Replace mentions of `toString` with `.*?` to keep the template generic.
+		// Replace thing like `for ...` to support environments, like Rhino, which add extra
+		// info such as method arity.
+		.replace(/toString|(function).*?(?=\\\()| for .+?(?=\\\])/g, '$1.*?') + '$'
+	);
+
+	return function(value) {
+		var type = typeof value;
+		return type == 'function'
+		// Use `Function#toString` to bypass the value's own `toString` method
+		// and avoid being faked out.
+		? reNative.test(fnToString.call(value))
+		// Fallback to a host object check because some environments will represent
+		// things like typed arrays as DOM methods which may not conform to the
+		// normal native pattern.
+		: (value && type == 'object' && reHostCtor.test(toString.call(value))) || false;
+	};
+})();
+
 
 //// EXPORTS //////////////////////////////////////////////////////////////
 
@@ -570,47 +609,54 @@ exports.chkArith = function(value, a, b, op, where) {
 // Checks on func(*args) where |func_expr| is the raw source
 //  expression that evaluated to |func| and |func_this|
 //  is the value of |this| to use.
-exports.chkCall = function(func, func_this, args, func_expr, where) {
-	// E2: Attempt to call non-callable
-	if (!func) {
-		check(2, arguments);
-	}
+exports.chkCall = (function() {
+	var fnToString = Function.prototype.toString;
 
-	// W6: Function called with too many arguments
-	if (args.length > func.length) {
-		for (var i = func.length; i < args.length; ++i) {
-			if (!isUndefined(args[i])) {
-				break;
+	return function(func, func_this, args, func_expr, where) {
+		// E2: Attempt to call non-callable
+		if (!func) {
+			check(2, arguments);
+		}
+
+		// W6: Function called with too many arguments
+		if (args.length > func.length) {
+			for (var i = func.length; i < args.length; ++i) {
+				if (!isUndefined(args[i])) {
+					break;
+				}
+			}
+			if (i < args.length) {
+				// Check if the JS |arguments| array is potentially used
+				// anywhere in the called function's source code, if so
+				// do not emit the warning.
+				// 
+				// This is a hacky heuristic:
+				// If found, the arguments array could refer to another,
+				// nested function's |arguments| (false negative).
+				//
+				// Furthermore, eval() is another way of accessing the
+				// |arguments| array (false positive).
+				//
+				//
+				// Special handling also for native functions, such as
+				// |console.log|: these do not provide decompiled source
+				// code using |toString|.
+				var func_source_code = fnToString.call(func);
+				if (!/\barguments\b/.test(func_source_code) &&
+					!/\beval\b/.test(func_source_code) &&
+					!isNativeFunction(func)) {
+
+					check(6, [func.length, args.length, func_source_code.length > 200
+						? func_source_code.substring(0, 200)
+						: func_source_code]);
+				}
 			}
 		}
-		if (i < args.length) {
-			// Check if the JS |arguments| array is potentially used
-			// anywhere in the called function's source code, if so
-			// do not emit the warning.
-			// 
-			// This is a hacky heuristic:
-			// If found, the arguments array could refer to another,
-			// local function's arguments (false negative).
-			//
-			// Furthermore, eval() is another way of accessing the
-			// |arguments| array (false positive).
-			//
-			var func_source_code = func.toString();
-			if (!/\barguments\b/.test(func_source_code) &&
-				!/\beval\b/.test(func_source_code)) {
 
-				check(6, [func.length, args.length, func_source_code.length > 200
-					? func_source_code.substring(0, 200)
-					: func_source_code]);
-			}
-		}
-	}
-
-	var result = func.apply(func_this, args);
-
-	// 
-	return result;
-};
+		var result = func.apply(func_this, args);
+		return result;
+	};
+})();
 
 
 //  Trace assignment from RHS to LHS.
