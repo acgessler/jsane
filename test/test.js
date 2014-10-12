@@ -161,6 +161,10 @@ describe('esnull', function() {
    			it('should preserve strict mode / asm.js annotations', function() {
    				runTestcase(1004);
    			});
+
+            it('should preserve closure behaviour', function() {
+               runTestcase(1005);
+            });
    		});
 
    		describe('check', function() {
