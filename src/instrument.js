@@ -136,8 +136,6 @@ var Context = function(options) {
 			}
 		}).toString();
 
-		console.log(instrumented_text);
-
 		// Link in runtime library
 		if (runtime_linkage === exports.RUNTIME_NONE) {
 			return instrumented_text;
