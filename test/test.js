@@ -110,20 +110,20 @@ describe('esnull', function() {
    describe('instrumentation', function() {
    		describe('runtime', function() {
    			it('should work with require()', function() {
-   				runTestcase(1000, {
+   				runTestcase('_runtime_linkage', {
    					runtime_linkage : jsane.RUNTIME_REQUIRE
    				});
-   				runTestcase(1001, {
+   				runTestcase('_custom_runtime_name', {
    					runtime_linkage : jsane.RUNTIME_REQUIRE,
    					runtime_name : 'magic_runtime_name'
    				});
    			});
 
    			it('should be embeddable', function() {
-   				runTestcase(1000, {
+   				runTestcase('_runtime_linkage', {
    					runtime_linkage : jsane.RUNTIME_EMBED
    				});
-   				runTestcase(1001, {
+   				runTestcase('_custom_runtime_name', {
    					runtime_linkage : jsane.RUNTIME_EMBED,
    					runtime_name : 'magic_runtime_name'
    				});
@@ -131,14 +131,14 @@ describe('esnull', function() {
 
    			it('should be able to pre-exist', function() {
    				global.magic_runtime_name = require('../src/runtime');
-   				runTestcase(1001, {
+   				runTestcase('_custom_runtime_name', {
    					runtime_linkage : jsane.RUNTIME_NONE,
    					runtime_name : 'magic_runtime_name'
    				});
 
    				// The same, minified version of the runtime
    				global.magic_runtime_name2 = require('../compiled/runtime.min');
-   				runTestcase(1001, {
+   				runTestcase('_custom_runtime_name', {
    					runtime_linkage : jsane.RUNTIME_NONE,
    					runtime_name : 'magic_runtime_name2'
    				});
@@ -151,19 +151,23 @@ describe('esnull', function() {
 
    		describe('correctness', function() {
    			it('should evaluate each expression exactly once', function() {
-   				runTestcase(1002);
+   				runTestcase('_eval_once');
    			});
 
    			it('should work with implicit and explicit semicolons', function() {
-   				runTestcase(1003);
+   				runTestcase('_implicit_semicolons');
    			});
 
    			it('should preserve strict mode / asm.js annotations', function() {
-   				runTestcase(1004);
+   				runTestcase('_strictmode');
    			});
 
             it('should preserve closure behaviour', function() {
-               runTestcase(1005);
+               runTestcase('_closures');
+            });
+
+            it('should preserve property iteration behaviour', function() {
+               runTestcase('_property_iteration');
             });
    		});
 
