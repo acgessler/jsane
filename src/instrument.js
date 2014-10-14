@@ -413,6 +413,11 @@ var Context = function(options) {
 			subs[prefix + 'id'] = sprintf('%(tmp0)s[1]', subs_private);
 			subs[prefix + 'val'] = sprintf('%(tmp0)s[0][%(tmp0)s[1]]', subs_private);
 		}
+		else if (node.type === 'CallExpression') {
+			subs[prefix + 'scope_id'] = '"null"';
+			subs[prefix + 'id'] = '"null"';
+			subs[prefix + 'val'] = node.source();
+		}
 		else if (node.type === 'Identifier') {
 			var scope_id_js	;
 			var resolved = node.resolved;
@@ -430,7 +435,7 @@ var Context = function(options) {
 				// A pure local variable which gets recorded on the
 				// local tracing stack and only promoted to global
 				// tracing if needed.
-				scope_id_js	 = "null";
+				scope_id_js = "null";
 			}
 			else {
 				// A variable that is closed over, so it potentially
@@ -438,7 +443,7 @@ var Context = function(options) {
 				// which to associate it is found in a runtime
 				// variable declared by that scope. Tracing will
 				// be global.
-				scope_id_js	 = resolved.getVariable()
+				scope_id_js = resolved.getVariable()
 						.getScope()
 						.getRuntimeTraceIdVariableName();
 			}
