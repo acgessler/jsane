@@ -346,8 +346,17 @@ var tracer = (function() {
 
 	// One frame on the |local_trace_stack|
 	var LocalTraceStackFrame = function(function_call_id) {
-		this.entries = {};
+		// local variable name OR argument index as string -> TraceItem
+		this.entries = {}; 
 		this.function_call_id = function_call_id;
+	};
+
+	// Cache some of the more frequently used keys for tracing local
+	// arguments to avoid excessive string creation at runtime.
+	var numeralStrings = ["0", "1", "2", "3", "4", "5", "6", "7", "8"];
+	var numberToStringFn = Number.prototype.toString;
+	var fastNumeralToString = function(num) {
+		return numeralStrings[num] || numberToStringFn.call(num);
 	};
 
 	var traceGlobal = function(lhs_scope_id, lhs_id, rhs, rhs_scope_id, rhs_id) {
@@ -421,6 +430,10 @@ var tracer = (function() {
 		//local_trace_stack_top.entries[lhs_id] = new TraceItem(rhs, rhs_scope_id, rhs_id);
 	};
 
+	var getLocalTraceScope = function() {
+		return local_trace_stack_top;
+	};
+
 	var pushLocalTraceScope = function() {
 		local_trace_stack_top = new LocalTraceStackFrame(allocateTraceId());
 		local_trace_stack.push(local_trace_stack_top);
@@ -433,11 +446,52 @@ var tracer = (function() {
 		local_trace_stack_top = local_trace_stack[local_trace_stack.length - 1];
 	};
 
+	var connectArgumentTraces = function(callee_trace_stack_frame, caller_trace_stack_frame, argument_names) {
+		// Steps to ensure correct tracing for arguments.
+		//
+		//  - Look at trace entries for arguments (in the
+		//    local trace of the calling function).
+		//  - Identify arguments in the current function
+		//    that were omitted or were passed a value
+		//    that qualifies for tracing. This requires
+		//    that the call site emits trace info for all
+		//    (not just the null/undefined etc) arguments.
+		//    [The |arguments| array can not be used instead as
+		//    it would interfere with W6/chkCall.]
+		//  - Generate trace entries for all such arguments,
+		//    thus connecting the local argument variable
+		//    to the argument value at the call site.
+		var caller_locals = caller_trace_stack_frame.entries;
+		var callee_locals = callee_trace_stack_frame.entries;
+		var i = 0, e = argument_names.length;
+		for (; i < e; ++i) {
+			var key = fastNumeralToString(i);
+			var arg_trace_entry = caller_locals[key];
+
+			// No tracing entry for this argument index found. This
+			// means there is no more arguments.
+			if (!arg_trace_entry) {
+				break;
+			}
+
+			if (shouldTrace(arg_trace_entry.rhs)) {
+				callee_locals[argument_names[i]] = arg_trace_entry;
+			}
+		}
+
+		for (; i < e; ++i) {
+			var key = fastNumeralToString(i);
+			callee_locals[argument_names[i]] = new TraceItem(undefined, null, null);
+		}
+	};
+
 	return {
 		traceGlobal : traceGlobal,
 		traceLocal : traceLocal,
 		pushLocalTraceScope : pushLocalTraceScope,
-		popLocalTraceScope : popLocalTraceScope
+		popLocalTraceScope : popLocalTraceScope,
+		getLocalTraceScope : getLocalTraceScope,
+		connectArgumentTraces : connectArgumentTraces
 	};
 })();
 
@@ -669,10 +723,10 @@ exports.chkCall = (function() {
 //   Source and destination are identified by a (scope_id, id)
 //   tuple which must be one of the following combos:
 //
-//  i)   Object, String
+//  i)   Object, String (Any)
 //       Assignment to object property
 //
-//	ii)  null, String
+//	ii)  null, String (Valid JS Identifier)
 //	     Assignment to/from local variable
 //
 //	iii) null, Number
@@ -714,23 +768,23 @@ exports.assign = function(rhs, lhs_scope_id, lhs_id, rhs_scope_id, rhs_id) {
 //  |argument_names| is an array containing the names of all
 //  named arguments that the function takes.
 exports.enterFunc = function(argument_names) {
-	// TODO: determine if caller is instrumented first.
-
-	// Steps to ensure correct tracing for arguments:
-	//  - Look at trace entries for arguments (in the
-	//    local trace of the calling function).
-	//  - Identify arguments in the current function
-	//    that were omitted or were passed a value
-	//    that qualifies for tracing. This requires
-	//    that the call site emits trace info for all
-	//    (not just the null/undefined etc) arguments.
-	//    [The |arguments| array can not be used instead as
-	//    it would interfere with W6/chkCall.]
-	//  - Generate trace entries for all such arguments,
-	//    thus connecting the local argument variable
-	//    to the argument value at the call site.
+	// If the caller is not instrumented, no local trace info is available.
 	// TODO
-	var scope = tracer.pushLocalTraceScope();
+
+	// Setup a new stack frame on the local trace stack
+	var old_scope = tracer.getLocalTraceScope();
+	if (old_scope) {
+		var scope = tracer.pushLocalTraceScope();
+
+		// This ensures proper tracing of values passed as argument
+		// by connecting the caller with the callee trace records.
+		tracer.connectArgumentTraces(scope, old_scope, argument_names);
+
+		// Return the tracing ID to the function being instrumented,
+		// where it is made available as a local variable for
+		// nested scopes to access.
+		return scope.function_call_id;
+	}
 };
 
 
