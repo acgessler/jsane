@@ -351,14 +351,6 @@ var tracer = (function() {
 		this.function_call_id = function_call_id;
 	};
 
-	// Cache some of the more frequently used keys for tracing local
-	// arguments to avoid excessive string creation at runtime.
-	var numeralStrings = ["0", "1", "2", "3", "4", "5", "6", "7", "8"];
-	var numberToStringFn = Number.prototype.toString;
-	var fastNumeralToString = function(num) {
-		return numeralStrings[num] || numberToStringFn.call(num);
-	};
-
 	var traceGlobal = function(lhs_scope_id, lhs_id, rhs, rhs_scope_id, rhs_id) {
 		var trace_item = rhs instanceof TraceItem 
 			? rhs
@@ -465,8 +457,7 @@ var tracer = (function() {
 		var callee_locals = callee_trace_stack_frame.entries;
 		var i = 0, e = argument_names.length;
 		for (; i < e; ++i) {
-			var key = fastNumeralToString(i);
-			var arg_trace_entry = caller_locals[key];
+			var arg_trace_entry = caller_locals[i];
 
 			// No tracing entry for this argument index found. This
 			// means there is no more arguments.
@@ -480,7 +471,6 @@ var tracer = (function() {
 		}
 
 		for (; i < e; ++i) {
-			var key = fastNumeralToString(i);
 			callee_locals[argument_names[i]] = new TraceItem(undefined, null, null);
 		}
 	};
@@ -731,6 +721,10 @@ exports.chkCall = (function() {
 //
 //	iii) null, Number
 //	     Assignment to argument #n of a function being called
+//
+//  iv)  null, null
+//       Assignment of a literal value. This begins a new
+//       trace path for this value.
 // 
 //  Assign is tied closely with function call instrumentation to
 //  handle data traces across function invocations correctly.
