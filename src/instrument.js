@@ -231,11 +231,11 @@ var Context = function(options) {
 			prefix : '',
 		};
 
-		// Get trace stubs for both sides ofthe assignment
+		// Get trace stubs for both sides of the assignment
 		this.populateExpressionTraceStubs(node.left, subs, 'lhs_');
 		this.populateExpressionTraceStubs(node.right, subs, 'rhs_');
 
-		if (op != '=') {
+		if (op !== '=') {
 			// Compound assignment operations |a @= b| are evaluated
 			// as |a` = (a` @ b)| where a` is the reference obtained
 			// by the evaluation of a.
@@ -252,7 +252,7 @@ var Context = function(options) {
 				'%(tmp1)s = %(rhs_val)s, ' +
 				'%(tmp2)s = %(tmp0)s %(op)s %(tmp1)s; ' +
 				'%(tmp3)s = %(runtime_name)s.chkArith(%(tmp2)s, %(tmp0)s, %(tmp1)s, ' +
-					'\'%(op)s\', \'%(loc)s\');' +
+					'\'%(op)s\', \'%(loc)s\', %(lhs_scope_id)s, %(lhs_id)s, %(rhs_scope_id)s, %(rhs_id)s);' +
 				'return %(lhs_val)s = %(runtime_name)s.assign(%(tmp3)s, ' +
 					'%(lhs_scope_id)s, %(lhs_id)s, %(rhs_scope_id)s, %(rhs_id)s, \'%(loc)s\');',
 				subs)));
@@ -270,9 +270,6 @@ var Context = function(options) {
 	/////////////////////////////
 	this.instrumentBinaryExpression = function(node, file_name) {
 		var op = node.operator;
-		if (op[1] === '=') { // Support compound assignment
-			op = op[0];
-		}
 		if (op === '+' || op === '-' || op === '*' || op === '/' || op === '|' || op === '&') {
 			var subs = {
 				tmp0 : scoping_util.genUniqueName(),
@@ -285,12 +282,17 @@ var Context = function(options) {
 				loc : file_name + ':' + node.loc.start.line
 			};
 
+			// Get trace stubs for both operands
+			this.populateExpressionTraceStubs(node.left, subs, 'lhs_');
+			this.populateExpressionTraceStubs(node.right, subs, 'rhs_');
+
 			node.update(self.wrap(sprintf(
-				'var %(tmp0)s = %(lhs)s, ' +
-				'%(tmp1)s = %(rhs)s, ' +
+				'%(preamble)s' +
+				'var %(tmp0)s = %(lhs_val)s, ' +
+				'%(tmp1)s = %(rhs_val)s, ' +
 				'%(tmp2)s = %(tmp0)s %(op)s %(tmp1)s; ' +
 				'return %(runtime_name)s.chkArith(%(tmp2)s, %(tmp0)s, %(tmp1)s, ' +
-					'\'%(op)s\', \'%(loc)s\');',
+					'\'%(op)s\', \'%(loc)s\', %(lhs_scope_id)s, %(lhs_id)s, %(rhs_scope_id)s, %(rhs_id)s);',
 				subs)));
 		}
 		else if (op === 'in') {

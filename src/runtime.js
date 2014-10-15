@@ -60,7 +60,7 @@ var checks_cfg = [
 		// Message details. This may not be shown depending on output settings
 		"Expression: '{1} {3} {2} => {0}'",
 		// Category, i.e. "What could this hint at?"
-		CAT_BUG_EARLIER
+		CAT_BUG_EARLIER,
 	],
 
 	// 1
@@ -120,7 +120,7 @@ var print_func = defaultPrintFunc;
 
 // Trigger runtime check No |idx|. Action taken depends on
 // global configuration in |checks_cfg|.
-var check = function(idx, format_arguments) {
+var check = function(idx, format_arguments, cause_scope_id, cause_id) {
 	var data = checks_cfg[idx]
 	,	severity = data[0]
 	,	message  = data[1]
@@ -128,6 +128,9 @@ var check = function(idx, format_arguments) {
 	,	category = data[3]
 	;
 
+	// Return immediately if the check is set to be ignored.
+	// It is important that no heavy format / trace work
+	// happens before this check.
 	if (severity === LV_IGN) {
 		return;
 	}
@@ -145,6 +148,10 @@ var check = function(idx, format_arguments) {
 		message_detail,
 		message_category
 	]);
+
+	if (!isUndefined(cause_scope_id) && !isUndefined(cause_id)) {
+		full_message += '\nTrace+\n\t' + tracer.getTraceLines(cause_scope_id, cause_id).join('\n\t');
+	}
 
 	print_func(full_message);
 
@@ -475,13 +482,18 @@ var tracer = (function() {
 		}
 	};
 
+	var getTraceLines = function(scope_id, id) {
+		return ['haha'];
+	};
+
 	return {
 		traceGlobal : traceGlobal,
 		traceLocal : traceLocal,
 		pushLocalTraceScope : pushLocalTraceScope,
 		popLocalTraceScope : popLocalTraceScope,
 		getLocalTraceScope : getLocalTraceScope,
-		connectArgumentTraces : connectArgumentTraces
+		connectArgumentTraces : connectArgumentTraces,
+		getTraceLines : getTraceLines
 	};
 })();
 
@@ -587,8 +599,9 @@ exports.setPrintFunc = function(f) {
 };
 
 
-// Checks on |a| |op| |b| having resulted in |value| 
-exports.chkArith = function(value, a, b, op, where) {
+// Checks on |a| |op| |b| having resulted in |value|.
+// Parameter tail is used to supply both sides' tracing context.
+exports.chkArith = function(value, a, b, op, where, a_scope_id, a_id, b_scope_id, b_id) {
 	if (op === '+') {
 		// See ECMA5.1 #11.6.1
 		// If one of the operands is a string after applying the
@@ -644,11 +657,18 @@ exports.chkArith = function(value, a, b, op, where) {
 	// If it is not finite either, it is likely to cause havoc later.
 	// If it is ok, a potential issue has been silently swallowed.
 	if (!isFiniteNumber(a) || !isFiniteNumber(b)) {
+		var scope_id = a_scope_id;
+		var id = a_id;
+		if (!isFiniteNumber(b)) {
+			scope_id = b_scope_id;
+			id = b_id;
+		}
+
 		if (!isFiniteNumber(value)) {
-			check(0, arguments);
+			check(0, arguments, scope_id, id);
 		}
 		else {
-			check(1, arguments);
+			check(1, arguments, scope_id, id);
 		}
 	}
 
