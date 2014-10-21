@@ -7,13 +7,13 @@ obj.bar.a = 2;
 
 // JSane: off
 var foo_count = 0;
-var foo = function() {
+var foo = function(a, b, c) {
 	++foo_count;
 	return obj;
 };
 
 var baz_count = 0;
-var baz = function() {
+var baz = function(a) {
 	++baz_count;
 	return "a";
 };
