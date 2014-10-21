@@ -18,7 +18,7 @@ var baz = function() {
 	return "a";
 };
 
-
+"<<[expect=]";
 
 // JSane: on
 // --------------------
@@ -86,3 +86,5 @@ foo(foo(), foo(), baz( baz( 2 + baz() ) ));
 
 expect(foo_count).to.equal(10);
 expect(baz_count).to.equal(7);
+
+">>";
