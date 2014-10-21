@@ -1,6 +1,8 @@
 // Test to verify that instrumentation leaves
 // "use strict" and "asm" annotations intact.
 
+"<<[expect=]";
+
 function f_strict(foo, bar, baz) {
 	"use strict";
 	var f = this;
@@ -26,3 +28,5 @@ function f_asm() {
 	"use asm";
 	return {};
 }
+
+">>"

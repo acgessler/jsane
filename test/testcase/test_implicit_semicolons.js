@@ -22,6 +22,8 @@ var baz = function() {
 // This needs to work even if said function is in a
 // JSane-disabled block.
 
+"<<[expect=]";
+
 // JSane: on
 // --------------------
 
@@ -46,3 +48,5 @@ foo = ( function(foo) {
 // JSane: off
 
 expect(foo).to.equal(4);
+
+">>";

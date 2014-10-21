@@ -2,6 +2,8 @@
 // to objects to trace them does not change observable
 // behaviour.
 
+"<<[expect=]";
+
 // Name of the extra property that is added to each object.
 //
 // This needs to be kept in sync with src/runtime.js
@@ -36,3 +38,5 @@ for (k in o) {
 }
 
 expect(i).to.equal(2);
+
+">>";
