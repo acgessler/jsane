@@ -8,6 +8,9 @@ module.exports = function(grunt) {
   grunt.initConfig({
 
     // includes: Flatten the runtime source code into one big file.
+    // This way, runtime does not depend on any module system and
+    // src/runtime/main.js controls the public API and all changes
+    // to global state.
     includes: {
       build: {
         src: [ 'src/runtime/main.js'],
@@ -16,7 +19,8 @@ module.exports = function(grunt) {
     },
 
     // browserify: used to derive a version of the instrumentation
-    // node app that can run in browser demos.
+    // node app that can run in browser demos. Here we do not care
+    // about dependencies or changes to global state.
     browserify: {
       dist: {
         files: {
@@ -45,7 +49,6 @@ module.exports = function(grunt) {
         src: ['test/*.js']
       }
     },
-
   });
 
   // [web_standalone]
@@ -55,6 +58,6 @@ module.exports = function(grunt) {
   grunt.registerTask('web_standalone', ['browserify', 'includes', 'uglify']);
 
   // [default]
-  // Build minified version of runtime, run node tests
+  // Build runtime and instrumentation, run node tests
   grunt.registerTask('default', ['includes', 'uglify', 'mochaTest']);
 };
