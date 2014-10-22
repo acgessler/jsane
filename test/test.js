@@ -4,7 +4,7 @@ var	chai = require('chai')
 ,	fs = require('fs')
 ,	path = require('path')
 ,	sprintf = require('sprintf-js').sprintf
-,	jsane = require('../src/instrument')
+,	jsane = require('../src/instrumentation/instrument')
 ,	_ = require('underscore')._
 ;
 
@@ -130,13 +130,14 @@ describe('esnull', function() {
    			});
 
    			it('should be able to pre-exist', function() {
-   				global.magic_runtime_name = require('../src/runtime');
+               // First try the raw runtime source that was concatenated from ../src/runtime
+   				global.magic_runtime_name = require('../compiled/runtime');
    				runTestcase('_custom_runtime_name', {
    					runtime_linkage : jsane.RUNTIME_NONE,
    					runtime_name : 'magic_runtime_name'
    				});
 
-   				// The same, minified version of the runtime
+   				// Then the minified version of the runtime
    				global.magic_runtime_name2 = require('../compiled/runtime.min');
    				runTestcase('_custom_runtime_name', {
    					runtime_linkage : jsane.RUNTIME_NONE,

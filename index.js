@@ -7,7 +7,7 @@
 
 // Make the runtime library available as |runtime|. If this name
 // changes, src/instrument.js needs to be updated.
-exports.runtime = require('./src/runtime');
+exports.runtime = require('./src/runtime/runtime');
 
 // Public API to instrument files
-exports.processFile = require('./src/standalone').processFile;
+exports.processFile = require('./src/instrumentation/standalone').processFile;
