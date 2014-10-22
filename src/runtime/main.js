@@ -300,5 +300,13 @@ exports.proxyInOperator	= objectTraceUtil.proxyInOperator;
 
 objectTraceUtil.setupObjectHooks();
 
-// Boilerplate to enable use in the browser outside node.js
+// Boilerplate to enable direct use in the browser outside node.js, i.e.
+// via a <script> tag (which also makes it easy to guarantee that
+// the code only executes once and thus all tracing state is shared.)
+// This is useful if instrumentation is configured to assume the
+// runtime available and neither require()s nor embeds it.
+//
+// If the runtime text is instead embedded into the instrumented source
+// code, it is provided a fake |export| and surrounded by guards that
+// prevent double-initialization.
 })(typeof exports === 'undefined' ? this['__rt'] = {} : exports);

@@ -148,9 +148,12 @@ var Context = function(options) {
 			return runtime_name_binding + instrumented_text;
 		}
 		else if (runtime_linkage === exports.RUNTIME_EMBED) {
-			// The runtime module populates |exports| because
-			// it thinks that it runs as node module.
-			var runtime_embedding = self.wrap(format('%s = {}; var exports = %s; %s',
+			// The runtime module populates |exports| if present. We must add guards
+			// to prevent double initialization since different modules can be
+			// instrumented separately but used together, ending up with multiple
+			// copies of this snippet.
+			var runtime_embedding = self.wrap(format('if (typeof %s === "undefined") { %s = {}; var exports = %s; %s }',
+				runtime_name,
 				runtime_name,
 				runtime_name,
 				getRuntimeText()
