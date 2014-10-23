@@ -87,4 +87,61 @@ foo(foo(), foo(), baz( baz( 2 + baz() ) ));
 expect(foo_count).to.equal(10);
 expect(baz_count).to.equal(7);
 
+// JSane: on
+// --------------------
+
+// Use a property with counting setters and getters to determine
+// how often property expressions get evaluated.
+var backing = 0;
+var count_set = 0;
+var count_get = 0;
+var o2 = {};
+Object.defineProperty(o2, 'foo', {
+  get: function() { 
+  	++count_get;
+  	return backing;
+  },
+  set: function(new_val) {
+  	++count_set;
+  	backing = new_val;
+  },
+  enumerable: true,
+  configurable: true
+});
+
+// Assign undefined to ensure tracing kicks in
+o2.foo = undefined;
+
+// --------------------
+// JSane: off
+
+expect(count_set).to.equal(1);
+expect(count_get).to.equal(0);
+
+// JSane: on
+// --------------------
+
+var temp = o2.foo;
+
+// --------------------
+// JSane: off
+
+expect(count_set).to.equal(1);
+expect(count_get).to.equal(1);
+
+// JSane: on
+// --------------------
+
+o2.foo = 0;
+o2.foo += 2;
+
+// --------------------
+// JSane: off
+
+expect(count_set).to.equal(3);
+expect(count_get).to.equal(2);
+
+// JSane: on
+// --------------------
+
 ">>";
