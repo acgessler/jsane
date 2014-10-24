@@ -170,6 +170,10 @@ describe('esnull', function() {
             it('should preserve property iteration behaviour', function() {
                runTestcase('_property_iteration');
             });
+
+            it('should preserve Function class behaviour', function() {
+               runTestcase('_function');
+            });
    		});
 
    		describe('check', function() {

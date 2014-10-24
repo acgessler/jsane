@@ -211,14 +211,27 @@ var Context = function(options) {
 			runtime_trace_id_variable_name : scope.getRuntimeTraceIdVariableName()
 		};
 
-		node.body.update(sprintf(
+		// enterFunc() is called upon entering the function.
+		// leaveFunc() is invoked by every occurence of |return| or |throw|
+
+		// It is tempting to wrap the body in an anonymous function, yet
+		// this would break |arguments.caller/arguments.callee|. Whilst
+		// deprecated, generally frowned-upon and not in the standard,
+		// plenty of common utility libraries do use them.
+		//
+		// TODO: place leave() prior to all return points, including |throw|
+		var updated_body = sprintf(
 			'{' +
 				'%(prefix_string)s ' +
 				'var %(runtime_trace_id_variable_name)s = %(runtime_name)s.enterFunc(%(arg_names_js)s); ' +
 				'%(body)s;' +
 				'%(runtime_name)s.leaveFunc();' +
 			'}',
-			subs));
+			subs);
+
+		// Modify the function's |toString| property to return the original
+		// source code. Unfortunately, this means storing it as a string.
+		node.body.update(updated_body);
 	};
 
 
