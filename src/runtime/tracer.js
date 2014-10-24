@@ -64,6 +64,7 @@ var tracer = (function() {
 			: new TraceItem(rhs, rhs_scope_id, rhs_id);
 
 		traces[lhs_scope_id + "." + lhs_id] = trace_item;
+		console.log('global trace: [' + lhs_scope_id + ',' + lhs_id + '] = ' + rhs + ' [ ' + rhs_scope_id + ',' + rhs_id +']');
 
 		if (rhs_scope_id === null) {
 			// The RHS of the assignment is a local value. To preserve trace
@@ -106,7 +107,7 @@ var tracer = (function() {
 
 						// Generate a (func_scope_id, local_id) -> last_global_source trace entry
 						var global_id = local_id;
-						var global_scope_id = source.rhs_scope_id;
+						var global_scope_id = history[i][1].rhs_scope_id;
 
 						trace_item = new TraceItem(rhs,
 							last_global_source.rhs_scope_id,
@@ -125,7 +126,8 @@ var tracer = (function() {
 		return local_trace_stack[cursor].entries[id];
 	};
 
-	var traceLocal = function(lhs_id, trace_rhs, rhs, rhs_scope_id, rhs_id) {
+	var traceLocal = function(lhs_id, rhs, rhs_scope_id, rhs_id) {
+		console.log('local trace: ' + lhs_id + ' = ' + rhs + ' [' + rhs_scope_id + ',' + rhs_id +']');
 		//local_trace_stack_top.entries[lhs_id] = new TraceItem(rhs, rhs_scope_id, rhs_id);
 	};
 
