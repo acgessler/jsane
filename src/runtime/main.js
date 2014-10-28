@@ -21,6 +21,13 @@ instrumentation.
 (function(exports, undefined){
 "use strict";
 
+// Embed constants without leaking to outside
+var constants = (function(exports) {
+	// (evaluated by grunt-includes during build)
+	include "../shared/constants.js"
+	return exports
+})({});
+
 
 //// OUTPUT/LOG ///////////////////////////////////////////////////////////
 
@@ -29,10 +36,6 @@ include "output.js"
 
 
 //// TRACING //////////////////////////////////////////////////////////////
-
-// Static tracing ID used for the global object
-// sync with src/instrument.js/GLOBAL_OBJECT_TRACE_ID
-var GLOBAL_OBJECT_TRACE_ID = 1;
 
 // shouldTrace()
 // Check if the value |a| qualifies for tracing.
@@ -52,7 +55,7 @@ var shouldTrace = function(a) {
 //     scope are only permanently retained if the value
 //     "escapes" the function invocation.
 var allocateTraceId = function() {
-	var trace_id_source = GLOBAL_OBJECT_TRACE_ID + 1;
+	var trace_id_source = constants.GLOBAL_OBJECT_TRACE_ID + 1;
 
 	return function() {
 		return trace_id_source++;

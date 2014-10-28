@@ -17,13 +17,13 @@ var	falafel = require('falafel')
 ,	_ = require('underscore')._
 ,	ast_util = require('./ast_util')
 ,	scoping_util = require('./scoping_util')
+,	constants = require('./../shared/constants')
 ;
 
 // Mixed constants
 var	DEFAULT_RUNTIME_NAME = '__rt'
 ,	INDEX_NODE_MODULE = 'jsane'
 ,	RUNTIME_NODE_MODULE = 'compiled/runtime.min'
-,	GLOBAL_OBJECT_TRACE_ID = 1
 ;
 
 
@@ -437,7 +437,7 @@ var Context = function(options) {
 		}
 		else if (node.type === 'CallExpression') {
 			subs[prefix + 'scope_id'] = '"null"';
-			subs[prefix + 'id'] = '"null"';
+			subs[prefix + 'id'] = '"' + constants.RETURN_VALUE_ID + '"';
 			subs[prefix + 'val'] = node.source();
 		}
 		else if (node.type === 'Identifier') {
@@ -451,7 +451,7 @@ var Context = function(options) {
 				// Not found. This means it is in fact a property
 				// lookup (or setting of a property) on the
 				// global object.
-				scope_id_js = GLOBAL_OBJECT_TRACE_ID;
+				scope_id_js = constants.GLOBAL_OBJECT_TRACE_ID;
 			}
 			else if (resolved.getVariable().isLocal()) {
 				// A pure local variable which gets recorded on the
