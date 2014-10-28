@@ -229,9 +229,13 @@ var Context = function(options) {
 			'}',
 			subs);
 
-		// Modify the function's |toString| property to return the original
-		// source code. Unfortunately, this means storing it as a string.
 		node.body.update(updated_body);
+
+		// TODO: Function.toString() will currently return the instrumented
+		// source code. However, this should not pose a problem since
+		// dangerous reliance on toString() details would usually break
+		// in the presence of minifiers that mangle symbols.
+		// See test_function.js
 	};
 
 
