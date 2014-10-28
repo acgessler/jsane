@@ -105,10 +105,29 @@ function runTestcase(id, options) {
 }
 
 
+function testRuntimeIsolation() {
+   var id = '_isolation';
+   var src_file = path.join(__dirname, 'testcase', 'test' + id + '.js');
+   var source = fs.readFileSync(src_file, {encoding : 'utf-8'});
+
+   var runtime_src_file = path.join(__dirname, '..', 'compiled', 'runtime.min.js');
+   var runtime_source = fs.readFileSync(runtime_src_file, {encoding : 'utf-8'});
+
+   source = source.replace('INSERT_RUNTIME_HERE', runtime_source);
+   eval(source);
+}
+
+
 // Main test case list - most simply invoke runTestcase()
 describe('esnull', function() {
    describe('instrumentation', function() {
    		describe('runtime', function() {
+            // This *must* be the first test as otherwise previous uses
+            // of the runtime could have left their traces already.
+            it('should be isolated', function() {
+               testRuntimeIsolation();
+            });
+
    			it('should work with require()', function() {
    				runTestcase('_runtime_linkage', {
    					runtime_linkage : jsane.RUNTIME_REQUIRE
@@ -143,7 +162,7 @@ describe('esnull', function() {
    					runtime_linkage : jsane.RUNTIME_NONE,
    					runtime_name : 'magic_runtime_name2'
    				});
-   			});
+   			});         
    		});
 
 		describe('config', function() {
