@@ -224,8 +224,8 @@ var Context = function(options) {
 			'{' +
 				'%(prefix_string)s ' +
 				'var %(runtime_trace_id_variable_name)s = %(runtime_name)s.enterFunc(%(arg_names_js)s); ' +
-				'%(body)s;' +
-				'%(runtime_name)s.leaveFunc();' +
+				'try { %(body)s; } ' + 
+				'finally { %(runtime_name)s.leaveFunc(); }' +
 			'}',
 			subs);
 
