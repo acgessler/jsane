@@ -21,6 +21,33 @@ instrumentation.
 (function(exports, undefined){
 "use strict";
 
+// Embed constants without leaking to outside
+var constants = (function(exports) {
+	// (evaluated by grunt-includes during build)
+	/** 
+	JSane - Javascript Sanity Instrumentation Toolkit
+	See top level LICENSE or github.com/acgessler/jsane
+
+	Constants shared by both runtime/ and (offline) instrumentation/
+
+	By runtime gets baked into runtime source using grunt-includes
+	By instrumentation gets loaded using require()
+	*/
+
+	// Static tracing ID used for the global object
+	exports.GLOBAL_OBJECT_TRACE_ID = 1;
+
+	// Magic name used to refer to the return value of the
+	// last CallExpression during trace assignments.
+	//
+	// Contains an intentional whitespace to disambiguate from JS identifiers,
+	// which can otherwise contain most unicode characters.
+	exports.RETURN_VALUE_ID = '$ ret';
+
+
+	return exports
+})({});
+
 
 //// OUTPUT/LOG ///////////////////////////////////////////////////////////
 
@@ -194,10 +221,6 @@ var check = function(idx, format_arguments, cause_scope_id, cause_id) {
 
 //// TRACING //////////////////////////////////////////////////////////////
 
-// Static tracing ID used for the global object
-// sync with src/instrument.js/GLOBAL_OBJECT_TRACE_ID
-var GLOBAL_OBJECT_TRACE_ID = 1;
-
 // shouldTrace()
 // Check if the value |a| qualifies for tracing.
 // Changing this to always return true would enable full data tracing
@@ -216,7 +239,7 @@ var shouldTrace = function(a) {
 //     scope are only permanently retained if the value
 //     "escapes" the function invocation.
 var allocateTraceId = function() {
-	var trace_id_source = GLOBAL_OBJECT_TRACE_ID + 1;
+	var trace_id_source = constants.GLOBAL_OBJECT_TRACE_ID + 1;
 
 	return function() {
 		return trace_id_source++;
@@ -274,6 +297,8 @@ var objectTraceUtil = (function() {
 	// if application logic overrides these as well. Luckily,
 	// JS style guides typically discourage patching Object,
 	// Array etc.
+	//
+	// clearObjectHooks() reverts all such changes but still requires caution.
 	var old_hasOwnProperty = Object.prototype.hasOwnProperty;
 	var old_getOwnPropertyNames = Object.getOwnPropertyNames;
 	
@@ -287,15 +312,14 @@ var objectTraceUtil = (function() {
 		//     TODO
 		//  - Object.hasOwnProperty()
 
-		Object.prototype.hasOwnProperty = function(name) {
+		var hasOwnPropertyProxy = function(name) {
 			if (name === trace_id_prop_name) {
 				return false;
 			}
-
 			return old_hasOwnProperty.call(this, name);
 		};
 
-		Object.getOwnPropertyNames = function(o) {
+		var getOwnPropertyNamesProxy = function(o) {
 			var names = old_getOwnPropertyNames.call(this, o);
 			var idx = names.indexOf(trace_id_prop_name);
 			if( idx !== -1) {
@@ -303,6 +327,16 @@ var objectTraceUtil = (function() {
 			}
 			return names;
 		};
+
+		Object.prototype.hasOwnProperty = hasOwnPropertyProxy;
+		Object.getOwnPropertyNames = getOwnPropertyNamesProxy;
+
+		// Patch up toString() to make them appear as native functions.
+		// Note there is still infinite ways to detect the patching,
+		// for example toString.toString() now has the same problem and
+		// toString() no longer resolves up the prototype chain.
+		hasOwnPropertyProxy.toString = function() { return 'function hasOwnProperty() { [native code] }'; };
+		getOwnPropertyNamesProxy.toString = function() { return 'function getOwnPropertyNames() { [native code] }'; };
 
 		// Since the trace property is non-enumerable, no change is
 		// required for:
@@ -313,6 +347,11 @@ var objectTraceUtil = (function() {
 		//  - Object.keys()
 		//  - Object.hasEnumerableProperty()
 		//  - Object.propertyIsEnumerable()
+	};
+
+	var clearObjectHooks = function() {
+		Object.getOwnPropertyNames = old_getOwnPropertyNames;
+		Object.prototype.hasOwnProperty = old_hasOwnProperty;
 	};
 
 	var proxyInOperator = function(name, obj) {
@@ -363,7 +402,8 @@ var objectTraceUtil = (function() {
 	return {
 		getObjectTraceId : getObjectTraceId,
 		proxyInOperator : proxyInOperator,
-		setupObjectHooks : setupObjectHooks
+		setupObjectHooks : setupObjectHooks,
+		clearObjectHooks : clearObjectHooks,
 	}
 })();
 /** 
@@ -432,6 +472,7 @@ var tracer = (function() {
 			: new TraceItem(rhs, rhs_scope_id, rhs_id);
 
 		traces[lhs_scope_id + "." + lhs_id] = trace_item;
+		console.log('global trace: [' + lhs_scope_id + ',' + lhs_id + '] = ' + rhs + ' [ ' + rhs_scope_id + ',' + rhs_id +']');
 
 		if (rhs_scope_id === null) {
 			// The RHS of the assignment is a local value. To preserve trace
@@ -474,7 +515,7 @@ var tracer = (function() {
 
 						// Generate a (func_scope_id, local_id) -> last_global_source trace entry
 						var global_id = local_id;
-						var global_scope_id = source.rhs_scope_id;
+						var global_scope_id = history[i][1].rhs_scope_id;
 
 						trace_item = new TraceItem(rhs,
 							last_global_source.rhs_scope_id,
@@ -493,7 +534,8 @@ var tracer = (function() {
 		return local_trace_stack[cursor].entries[id];
 	};
 
-	var traceLocal = function(lhs_id, trace_rhs, rhs, rhs_scope_id, rhs_id) {
+	var traceLocal = function(lhs_id, rhs, rhs_scope_id, rhs_id) {
+		console.log('local trace: ' + lhs_id + ' = ' + rhs + ' [' + rhs_scope_id + ',' + rhs_id +']');
 		//local_trace_stack_top.entries[lhs_id] = new TraceItem(rhs, rhs_scope_id, rhs_id);
 	};
 
@@ -898,6 +940,31 @@ exports.leaveFunc = function() {
 
 // Export proxy for |a in b| operator.
 exports.proxyInOperator	= objectTraceUtil.proxyInOperator;
+
+
+// Undo all changes made to global state, including any references to
+// the runtime as direct fields of the global object. This renders
+// the runtime unusable even if references to it are retained elsewhere.
+//
+// A new instance of the runtime can now be initialized safely.
+//
+// Note when using require() to load the runtime, it caches and only
+// evaluates the runtime once. Thus calling require() again will not
+// undo the effects of undo.
+exports.undo = function() {
+	objectTraceUtil.clearObjectHooks();
+
+	// Global object independent of host environment
+	// See http://stackoverflow.com/questions/9642491/
+	var glob = (1,eval)('this');
+	if (glob !== this) {
+		for (var k in glob) {
+			if (glob[k] === this) {
+				delete glob[k];
+			}
+		}
+	}
+}
 
 
 //// INITIALIZATION ////////////////////////////////////////////////////////

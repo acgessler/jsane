@@ -300,9 +300,14 @@ exports.proxyInOperator	= objectTraceUtil.proxyInOperator;
 
 
 // Undo all changes made to global state, including any references to
-// the runtime as direct fields of the global objects. This renders
+// the runtime as direct fields of the global object. This renders
 // the runtime unusable even if references to it are retained elsewhere.
-// A new instance of the runtime can now be initialized safely. 
+//
+// A new instance of the runtime can now be initialized safely.
+//
+// Note when using require() to load the runtime, it caches and only
+// evaluates the runtime once. Thus calling require() again will not
+// undo the effects of undo.
 exports.undo = function() {
 	objectTraceUtil.clearObjectHooks();
 

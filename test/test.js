@@ -144,7 +144,6 @@ describe('esnull', function() {
    				runTestcase('_runtime_linkage', {
    					runtime_linkage : jsane.RUNTIME_REQUIRE
    				});
-               global[DEFAULT_RUNTIME_NAME].undo();
    			});
 
    			it('should be embeddable [runtime_linkage = jsane.RUNTIME_EMBED]', function() {
@@ -168,16 +167,12 @@ describe('esnull', function() {
    					runtime_name : 'magic_runtime_name'
    				});
 
-               global.magic_runtime_name.undo();
-
    				// Then the minified version of the runtime
    				global.magic_runtime_name = require('../compiled/runtime.min');
    				runTestcase('_custom_runtime_name', {
    					runtime_linkage : jsane.RUNTIME_NONE,
    					runtime_name : 'magic_runtime_name'
    				});
-
-               global.magic_runtime_name.undo();
    			});         
    		});
 

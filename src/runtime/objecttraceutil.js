@@ -67,7 +67,6 @@ var objectTraceUtil = (function() {
 			if (name === trace_id_prop_name) {
 				return false;
 			}
-
 			return old_hasOwnProperty.call(this, name);
 		};
 
