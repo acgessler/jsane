@@ -8,6 +8,10 @@ var	chai = require('chai')
 ,	_ = require('underscore')._
 ;
 
+// Sync with src/instrumentation/instrument.js
+var DEFAULT_RUNTIME_NAME = '__rt';
+
+
 // Shortcuts to common chai functions
 var expect = chai.expect;
 
@@ -121,34 +125,42 @@ function testRuntimeIsolation() {
 // Main test case list - most simply invoke runTestcase()
 describe('esnull', function() {
    describe('instrumentation', function() {
+         // Verify combinations of custom runtime naming with different ways of
+         // linking/referencing the JSane runtime.
+         //
+         // If the runtime is loaded multiple times through different linkage
+         // mechanisms, there is no longer a guarantee that it executes only
+         // once. This however causes patching to Object prototypes to go
+         // wrong. Hence, clear() must be called each time to undo any patches.
    		describe('runtime', function() {
             // This *must* be the first test as otherwise previous uses
-            // of the runtime could have left their traces already.
+            // of the runtime could have left their global traces already.
             it('should be isolated', function() {
                testRuntimeIsolation();
+               global[DEFAULT_RUNTIME_NAME].undo();
             });
 
-   			it('should work with require()', function() {
+   			it('should work with require() [runtime_linkage = jsane.RUNTIME_REQUIRE]', function() {
    				runTestcase('_runtime_linkage', {
    					runtime_linkage : jsane.RUNTIME_REQUIRE
    				});
-   				runTestcase('_custom_runtime_name', {
-   					runtime_linkage : jsane.RUNTIME_REQUIRE,
-   					runtime_name : 'magic_runtime_name'
-   				});
+               global[DEFAULT_RUNTIME_NAME].undo();
    			});
 
-   			it('should be embeddable', function() {
+   			it('should be embeddable [runtime_linkage = jsane.RUNTIME_EMBED]', function() {
    				runTestcase('_runtime_linkage', {
    					runtime_linkage : jsane.RUNTIME_EMBED
    				});
+               global[DEFAULT_RUNTIME_NAME].undo();
+
    				runTestcase('_custom_runtime_name', {
    					runtime_linkage : jsane.RUNTIME_EMBED,
    					runtime_name : 'magic_runtime_name'
    				});
+               global.magic_runtime_name.undo();
    			});
 
-   			it('should be able to pre-exist', function() {
+   			it('should be able to pre-exist [runtime_linkage = jsane.RUNTIME_NONE]', function() {
                // First try the raw runtime source that was concatenated from ../src/runtime
    				global.magic_runtime_name = require('../compiled/runtime');
    				runTestcase('_custom_runtime_name', {
@@ -156,12 +168,16 @@ describe('esnull', function() {
    					runtime_name : 'magic_runtime_name'
    				});
 
+               global.magic_runtime_name.undo();
+
    				// Then the minified version of the runtime
-   				global.magic_runtime_name2 = require('../compiled/runtime.min');
+   				global.magic_runtime_name = require('../compiled/runtime.min');
    				runTestcase('_custom_runtime_name', {
    					runtime_linkage : jsane.RUNTIME_NONE,
-   					runtime_name : 'magic_runtime_name2'
+   					runtime_name : 'magic_runtime_name'
    				});
+
+               global.magic_runtime_name.undo();
    			});         
    		});
 

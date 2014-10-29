@@ -299,6 +299,26 @@ exports.leaveFunc = function() {
 exports.proxyInOperator	= objectTraceUtil.proxyInOperator;
 
 
+// Undo all changes made to global state, including any references to
+// the runtime as direct fields of the global objects. This renders
+// the runtime unusable even if references to it are retained elsewhere.
+// A new instance of the runtime can now be initialized safely. 
+exports.undo = function() {
+	objectTraceUtil.clearObjectHooks();
+
+	// Global object independent of host environment
+	// See http://stackoverflow.com/questions/9642491/
+	var glob = (1,eval)('this');
+	if (glob !== this) {
+		for (var k in glob) {
+			if (glob[k] === this) {
+				delete glob[k];
+			}
+		}
+	}
+}
+
+
 //// INITIALIZATION ////////////////////////////////////////////////////////
 
 objectTraceUtil.setupObjectHooks();

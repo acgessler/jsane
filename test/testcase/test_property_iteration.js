@@ -24,6 +24,9 @@ expect(trace_id_prop_name in o).to.equal(false);
 expect(o.hasOwnProperty(trace_id_prop_name)).to.equal(false);
 expect(Object.getOwnPropertyNames(o).indexOf(trace_id_prop_name)).to.equal(-1);
 
+expect(Object.getOwnPropertyNames.toString()).to.equal('function getOwnPropertyNames() { [native code] }');
+expect(o.hasOwnProperty.toString()).to.equal('function hasOwnProperty() { [native code] }');
+
 // These are safe since they naturally ignore non-enumerable properties,
 // but we should still check them.
 expect(o.propertyIsEnumerable(trace_id_prop_name)).to.equal(false);

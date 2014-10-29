@@ -1,7 +1,7 @@
 // Test if the runtime library is linked correctly
 "<<[expect=]";
 
-console.log(__rt);
+console.log(2);
 console.log(__rt.info());
 
 ">>";

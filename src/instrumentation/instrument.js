@@ -141,7 +141,7 @@ var Context = function(options) {
 			return instrumented_text;
 		}
 		else if (runtime_linkage === exports.RUNTIME_REQUIRE) {
-			var runtime_name_binding = format('var %s = require(\'%s\').runtime;',
+			var runtime_name_binding = format('%s = require(\'%s\').runtime;',
 				runtime_name,
 				(options.jsane_node_module || INDEX_NODE_MODULE) 
 			);

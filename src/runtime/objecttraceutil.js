@@ -48,6 +48,8 @@ var objectTraceUtil = (function() {
 	// if application logic overrides these as well. Luckily,
 	// JS style guides typically discourage patching Object,
 	// Array etc.
+	//
+	// clearObjectHooks() reverts all such changes but still requires caution.
 	var old_hasOwnProperty = Object.prototype.hasOwnProperty;
 	var old_getOwnPropertyNames = Object.getOwnPropertyNames;
 	
@@ -61,7 +63,7 @@ var objectTraceUtil = (function() {
 		//     TODO
 		//  - Object.hasOwnProperty()
 
-		Object.prototype.hasOwnProperty = function(name) {
+		var hasOwnPropertyProxy = function(name) {
 			if (name === trace_id_prop_name) {
 				return false;
 			}
@@ -69,7 +71,7 @@ var objectTraceUtil = (function() {
 			return old_hasOwnProperty.call(this, name);
 		};
 
-		Object.getOwnPropertyNames = function(o) {
+		var getOwnPropertyNamesProxy = function(o) {
 			var names = old_getOwnPropertyNames.call(this, o);
 			var idx = names.indexOf(trace_id_prop_name);
 			if( idx !== -1) {
@@ -77,6 +79,16 @@ var objectTraceUtil = (function() {
 			}
 			return names;
 		};
+
+		Object.prototype.hasOwnProperty = hasOwnPropertyProxy;
+		Object.getOwnPropertyNames = getOwnPropertyNamesProxy;
+
+		// Patch up toString() to make them appear as native functions.
+		// Note there is still infinite ways to detect the patching,
+		// for example toString.toString() now has the same problem and
+		// toString() no longer resolves up the prototype chain.
+		hasOwnPropertyProxy.toString = function() { return 'function hasOwnProperty() { [native code] }'; };
+		getOwnPropertyNamesProxy.toString = function() { return 'function getOwnPropertyNames() { [native code] }'; };
 
 		// Since the trace property is non-enumerable, no change is
 		// required for:
@@ -87,6 +99,11 @@ var objectTraceUtil = (function() {
 		//  - Object.keys()
 		//  - Object.hasEnumerableProperty()
 		//  - Object.propertyIsEnumerable()
+	};
+
+	var clearObjectHooks = function() {
+		Object.getOwnPropertyNames = old_getOwnPropertyNames;
+		Object.prototype.hasOwnProperty = old_hasOwnProperty;
 	};
 
 	var proxyInOperator = function(name, obj) {
@@ -137,6 +154,7 @@ var objectTraceUtil = (function() {
 	return {
 		getObjectTraceId : getObjectTraceId,
 		proxyInOperator : proxyInOperator,
-		setupObjectHooks : setupObjectHooks
+		setupObjectHooks : setupObjectHooks,
+		clearObjectHooks : clearObjectHooks,
 	}
 })();

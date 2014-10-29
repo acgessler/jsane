@@ -30,8 +30,10 @@ var whitelist = [
 	'assign',
 	'enterFunc',
 	'leaveFunc',
-	'proxyInOperator'
+	'proxyInOperator',
+	'undo',
 ];
 
 expect(Object.keys(rt)).to.be.eql(whitelist);
+// TODO: verify Object, Function prototypes against a whitelist of patched functions
 
