@@ -13,5 +13,5 @@ exports.runtime = require('./compiled/runtime.min');
 
 // Public API to instrument files. This is loaded lazily.
 exports.processFile = function() {
-	return require('./src/instrumentation/standalone').processFile.apply(this, arguments);
+	return require('./src/instrument/standalone').processFile.apply(this, arguments);
 }

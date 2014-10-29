@@ -4,7 +4,7 @@ var	chai = require('chai')
 ,	fs = require('fs')
 ,	path = require('path')
 ,	sprintf = require('sprintf-js').sprintf
-,	jsane = require('../src/instrumentation/instrument')
+,	jsane = require('../src/instrument/main')
 ,	_ = require('underscore')._
 ;
 

@@ -15,8 +15,8 @@ var	falafel = require('falafel')
 ,	sprintf = require('sprintf-js').sprintf
 ,	fs = require('fs')
 ,	_ = require('underscore')._
-,	ast_util = require('./ast_util')
-,	scoping_util = require('./scoping_util')
+,	ast_util = require('./astutil')
+,	scoping_util = require('./nameresolver')
 ,	constants = require('./../shared/constants')
 ;
 
