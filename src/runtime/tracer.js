@@ -53,20 +53,22 @@ var tracer = (function(undefined) {
 	TraceItem.Undefined = new TraceItem(undefined, null, null);
 	TraceItem.Null = new TraceItem(null, null, null);
 
-	// One frame on the |local_trace_stack|, holds trace info for
-	// local values in one scope.
+	// One frame on the local tracing stack, holds trace info for
+	// purely local values in a scope. Upon entering a
+	// function a new trace stack frame is allocated on
+	// the |local_trace_stack|.
 	var LocalTraceStackFrame = function(function_call_id) {
 		// local variable name OR argument index as string -> TraceItem
 		this.entries = {}; 
 		this.function_call_id = function_call_id;
 	};
 
-	// Local tracing stack. The first entry is always present and
+	// Local tracing stack. The initial frame is never popped and
 	// holds temporary or intermediate values (i.e. arguments,
 	// return values) that occur at global scope, i.e. outside of
 	// any function. Note that regular assignments to or from
 	// global variables are traced as property access on the
-	// |global| object.
+	// |global| object, not using local tracing at all.
 	var local_trace_stack_top = new LocalTraceStackFrame(1);
 	var local_trace_stack = [
 		local_trace_stack_top
