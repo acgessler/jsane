@@ -275,11 +275,10 @@ exports.enterFunc = function(argument_names) {
 	// Setup a new stack frame on the local trace stack
 	var old_scope = tracer.getLocalTraceScope();
 	var scope = tracer.pushLocalTraceScope();
-	if (old_scope) {
-		// This ensures proper tracing of values passed as argument
-		// by connecting the caller with the callee trace records.
-		tracer.connectArgumentTraces(scope, old_scope, argument_names);	
-	}
+	
+	// This ensures proper tracing of values passed as argument
+	// by connecting the caller with the callee trace records.
+	tracer.connectArgumentTraces(scope, old_scope, argument_names);	
 
 	// Return the tracing ID to the function being instrumented,
 	// where it is made available as a local variable for

@@ -35,9 +35,7 @@ instrumentation.
 //   that leak into other scopes (i.e. closures).
 var tracer = (function(undefined) {
 	var traces = {};
-
-	var local_trace_stack = [];
-	var local_trace_stack_top = null;
+	
 
 	// Value side of a trace key-value pair in both local and global trace state
 	// Do not mutate once constructed
@@ -55,12 +53,24 @@ var tracer = (function(undefined) {
 	TraceItem.Undefined = new TraceItem(undefined, null, null);
 	TraceItem.Null = new TraceItem(null, null, null);
 
-	// One frame on the |local_trace_stack|
+	// One frame on the |local_trace_stack|, holds trace info for
+	// local values in one scope.
 	var LocalTraceStackFrame = function(function_call_id) {
 		// local variable name OR argument index as string -> TraceItem
 		this.entries = {}; 
 		this.function_call_id = function_call_id;
 	};
+
+	// Local tracing stack. The first entry is always present and
+	// holds temporary or intermediate values (i.e. arguments,
+	// return values) that occur at global scope, i.e. outside of
+	// any function. Note that regular assignments to or from
+	// global variables are traced as property access on the
+	// |global| object.
+	var local_trace_stack_top = new LocalTraceStackFrame(1);
+	var local_trace_stack = [
+		local_trace_stack_top
+	];
 
 	// Follows the tracing chain for a given local trace entry and emit global
 	// tracing entries for all traces in the chain. The return value is |TraceItem|
@@ -152,7 +162,7 @@ var tracer = (function(undefined) {
 
 	var traceLocal = function(lhs_id, rhs, rhs_scope_id, rhs_id) {
 		console.log('local trace: ' + lhs_id + ' = ' + rhs + ' [' + rhs_scope_id + ',' + rhs_id +']');
-		//local_trace_stack_top.entries[lhs_id] = new TraceItem(rhs, rhs_scope_id, rhs_id);
+		local_trace_stack_top.entries[lhs_id] = new TraceItem(rhs, rhs_scope_id, rhs_id);
 	};
 
 	var getLocalTraceScope = function() {
@@ -171,38 +181,40 @@ var tracer = (function(undefined) {
 			throw new Error('JSane critical error: Stack pop but stack is empty');
 		}
 
-		// This may become |undefined| if the stack  will be empty after popping
+		// This will never be |undefined| since the stack has at least one entry
+		// to hold intermediate values (arguments, return values) for the global scope.
 		var new_trace_stack_top = local_trace_stack[local_trace_stack.length - 2];
+		if (!new_trace_stack_top) {
 
-		if (new_trace_stack_top) {
+			throw new Error('JSane critical error: local trace stack empty, this should not happen');
+		}
 
-			// In the stack frame being popped, find the assignment to the return value, if any
-			// and emit a trace entry to connect it to the stack frame below.
-			var return_value_trace_entry = local_trace_stack_top.entries[constants.RETURN_VALUE_ID];
-			if (return_value_trace_entry) {
+		// In the stack frame being popped, find the assignment to the return value, if any
+		// and emit a trace entry to connect it to the stack frame below.
+		var return_value_trace_entry = local_trace_stack_top.entries[constants.RETURN_VALUE_ID];
+		if (return_value_trace_entry) {
 
-				if (return_value_trace_entry.rhs_scope_id === null && return_value_trace_entry.rhs_id) {
+			if (return_value_trace_entry.rhs_scope_id === null && return_value_trace_entry.rhs_id) {
 
-					// The value returned is a local value of the returning function.
-					// Since the corresponding trace info will be popped soon, we must
-					// promote this value and its history to be traced globally.
-					// TODO: It would be sufficient to promote all references to
-					// local variables in the callee scope only to global tracing.
-					// Unfortunately, this breaks the useful invariant that the
-					// chain never alternates between local and global tracing.
-					return_value_trace_entry = promoteToGlobalTrace(return_value_trace_entry.rhs,
-						return_value_trace_entry.rhs_id);
-				
-					if (return_value_trace_entry === null) {
-						throw new Error('JSane critical error: Source of return value assignment not found');
-					}
+				// The value returned is a local value of the returning function.
+				// Since the corresponding trace info will be popped soon, we must
+				// promote this value and its history to be traced globally.
+				// TODO: It would be sufficient to promote all references to
+				// local variables in the callee scope only to global tracing.
+				// Unfortunately, this breaks the useful invariant that the
+				// chain never alternates between local and global tracing.
+				return_value_trace_entry = promoteToGlobalTrace(return_value_trace_entry.rhs,
+					return_value_trace_entry.rhs_id);
+			
+				if (return_value_trace_entry === null) {
+					throw new Error('JSane critical error: Source of return value assignment not found');
 				}
-			}			
-			else {
-
-				// No return value exists, substitute |undefined| 
-				return_value_trace_entry = TraceItem.Undefined;
 			}
+		}			
+		else {
+
+			// No return value exists, substitute |undefined| 
+			return_value_trace_entry = TraceItem.Undefined;
 		}
 
 		// Now actually pop the stack and update the top element
@@ -210,9 +222,7 @@ var tracer = (function(undefined) {
 		local_trace_stack_top = new_trace_stack_top;
 
 		// Add the trace entry for the return value to the local tracing state
-		if (local_trace_stack_top) {
-			local_trace_stack_top.entries[constants.RETURN_VALUE_ID] = return_value_trace_entry;
-		}
+		local_trace_stack_top.entries[constants.RETURN_VALUE_ID] = return_value_trace_entry;
 	};
 
 	var connectArgumentTraces = function(callee_trace_stack_frame, caller_trace_stack_frame, argument_names) {
